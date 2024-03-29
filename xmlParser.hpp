@@ -33,6 +33,8 @@ public:
     const vector<tuple<string, float, float>>& getOrderInfo() const;
     const vector<int> getQueryIDs() const;
     const vector<int> getCancelIDs() const;
+    const bool& getIsCreate() const;
+    const bool& getIsTrans() const;
 
     void parse(const char* xmlString);
     void parseCreate(XMLElement* element);

@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "xmlParser.hpp"
 
 server::server(): port("12345"), socket_fd(-1) {}
 
@@ -95,6 +96,46 @@ int main() {
 
         string xml_message = my_server.recvMessage(client_socket_fd);
         cout << "Received message from client: " << xml_message << endl;
+
+        xmlParser parser;
+        parser.parse(xml_message.c_str());
+        if(parser.getIsCreate() == true){
+            const vector<pair<int, float>>& accountInfo = parser.getAccountInfo();
+            const map<string, PairVec>& symbolInfo = parser.getSymbolInfo();
+            cout << "Account Info:" << endl;
+            for (const auto& pair : accountInfo) {
+                cout << "Account ID: " << pair.first << ", Balance: " << pair.second << endl;
+            }
+
+            cout << endl << "Symbol Info:" << endl;
+            for (const auto& pair : symbolInfo) {
+                cout << "Symbol: " << pair.first << endl;
+                const PairVec& vec = pair.second;
+                for (const auto& subPair : vec) {
+                    cout << "Account ID: " << subPair.first << ", NUM: " << subPair.second << endl;
+                }
+            }
+        }
+        else if(parser.getIsTrans() == true){
+            cout << endl << "Transaction Info:" << endl;
+            cout << "account id: " << parser.getAccountIdForTrans() << endl;
+            cout << "Orders:" << endl;
+            for (const auto& order : parser.getOrderInfo()) {
+                cout << "Symbol: " << get<0>(order) << ", ";
+                cout << "Amount: " << get<1>(order) << ", ";
+                cout << "Limit: " << get<2>(order) << endl;
+            }
+
+            cout << endl << "Queries:" << endl;
+            for (int queryID : parser.getQueryIDs()) {
+                cout << "Query ID: " << queryID << endl;
+            }
+
+            cout << endl << "Cancellations:" << endl;
+            for (int cancelID : parser.getCancelIDs()) {
+                cout << "Cancel ID: " << cancelID << endl;
+            }
+        }
 
         close(client_socket_fd);
         cout << "Connection closed." << endl;

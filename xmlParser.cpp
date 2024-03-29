@@ -24,6 +24,14 @@ const vector<int> xmlParser::getCancelIDs() const {
     return cancelIDs;
 }
 
+const bool& xmlParser::getIsCreate() const {
+    return isCreate;
+}
+
+const bool& xmlParser::getIsTrans() const {
+    return isTrans;
+}
+
 void xmlParser::parse(const char* xmlString){
     XMLDocument doc;
     if(doc.Parse(xmlString) != XML_SUCCESS){
@@ -36,9 +44,13 @@ void xmlParser::parse(const char* xmlString){
     }
 
     if(string(root->Name()) == "create"){
+        isCreate = true;
+        isTrans = false;
         parseCreate(root);
     }
     else if(string(root->Name()) == "transactions"){
+        isCreate = false;
+        isTrans = true;
         accoutIdForTrans = stoi(root->Attribute("id"));
         parseTransactions(root);
     }
@@ -82,7 +94,7 @@ void xmlParser::parseTransactions(XMLElement* element){
 }
 
 
-int main() {
+/*int main() {
     const char* createString = R"(
         <create>
             <account id="1" balance="100.5"/>
@@ -152,4 +164,4 @@ int main() {
     }
 
     return 0;
-}
+}*/
