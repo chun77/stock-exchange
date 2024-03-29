@@ -1,112 +1,85 @@
-#include <iostream>
-#include <string>
-#include <vector>
-#include <map>
-#include "tinyxml2.h"
+#include "xmlParser.hpp"
 
-using namespace tinyxml2;
-using namespace std;
-using PairVec = vector<pair<int, float>>;
+const vector<pair<int, float>>& xmlParser::getAccountInfo() const {
+    return accountInfo;
+}
 
-class xmlParser{
-private:
+const map<string, PairVec>& xmlParser::getSymbolInfo() const {
+    return symbolInfo;
+}
 
-    bool isParsable;
-    bool isCreate;
-    bool isTrans;
+const int& xmlParser::getAccountIdForTrans() const {
+    return accoutIdForTrans;
+}
 
-    vector<pair<int, float>> accountInfo;
-    map<string, PairVec> symbolInfo;
+const vector<tuple<string, float, float>>& xmlParser::getOrderInfo() const {
+    return orderInfo;
+}
 
-    int accoutIdForTrans;
-    vector<tuple<string, float, float>> orderInfo;
-    vector<int> queryIDs;
-    vector<int> cancelIDs;
+const vector<int> xmlParser::getQueryIDs() const {
+    return queryIDs;
+}
 
-public:
+const vector<int> xmlParser::getCancelIDs() const {
+    return cancelIDs;
+}
 
-    const vector<pair<int, float>>& getAccountInfo() const {
-        return accountInfo;
+void xmlParser::parse(const char* xmlString){
+    XMLDocument doc;
+    if(doc.Parse(xmlString) != XML_SUCCESS){
+        return;
     }
 
-    const map<string, PairVec>& getSymbolInfo() const {
-        return symbolInfo;
+    XMLElement* root = doc.FirstChildElement();
+    if(!root){
+        return;
     }
 
-    const int& getAccountIdForTrans() const {
-        return accoutIdForTrans;
+    if(string(root->Name()) == "create"){
+        parseCreate(root);
     }
-
-    const vector<tuple<string, float, float>>& getOrderInfo() const {
-        return orderInfo;
+    else if(string(root->Name()) == "transactions"){
+        accoutIdForTrans = stoi(root->Attribute("id"));
+        parseTransactions(root);
     }
+}
 
-    const vector<int> getQueryIDs() const {
-        return queryIDs;
-    }
-
-    const vector<int> getCancelIDs() const {
-        return cancelIDs;
-    }
-
-    void parse(const char* xmlString){
-        XMLDocument doc;
-        if(doc.Parse(xmlString) != XML_SUCCESS){
-            return;
+void xmlParser::parseCreate(XMLElement* element){
+    for(XMLElement* child = element->FirstChildElement(); child; child = child->NextSiblingElement()){
+        if(string(child->Name()) == "account"){
+            int accountID = stoi(child->Attribute("id"));
+            float balance = stof(child->Attribute("balance"));
+            accountInfo.push_back(make_pair(accountID, balance));
         }
-
-        XMLElement* root = doc.FirstChildElement();
-        if(!root){
-            return;
-        }
-
-        if(string(root->Name()) == "create"){
-            parseCreate(root);
-        }
-        else if(string(root->Name()) == "transactions"){
-            accoutIdForTrans = stoi(root->Attribute("id"));
-            parseTransactions(root);
-        }
-    }
-
-    void parseCreate(XMLElement* element){
-        for(XMLElement* child = element->FirstChildElement(); child; child = child->NextSiblingElement()){
-            if(string(child->Name()) == "account"){
-                int accountID = stoi(child->Attribute("id"));
-                float balance = stof(child->Attribute("balance"));
-                accountInfo.push_back(make_pair(accountID, balance));
-            }
-            else if(string(child->Name()) == "symbol"){
-                string symbol = child->Attribute("sym");
-                for(XMLElement* symbolChild = child->FirstChildElement(); symbolChild; symbolChild = symbolChild->NextSiblingElement()){
-                    int accountID = stoi(symbolChild->Attribute("id"));
-                    float NUM = stof(symbolChild->GetText());
-                    symbolInfo[symbol].push_back(make_pair(accountID, NUM));
-                }
+        else if(string(child->Name()) == "symbol"){
+            string symbol = child->Attribute("sym");
+            for(XMLElement* symbolChild = child->FirstChildElement(); symbolChild; symbolChild = symbolChild->NextSiblingElement()){
+                int accountID = stoi(symbolChild->Attribute("id"));
+                float NUM = stof(symbolChild->GetText());
+                symbolInfo[symbol].push_back(make_pair(accountID, NUM));
             }
         }
     }
+}
 
-    void parseTransactions(XMLElement* element){
-        for(XMLElement* child = element->FirstChildElement(); child; child = child->NextSiblingElement()){
-            if(string(child->Name()) == "order"){
-                string symbol = child->Attribute("sym");
-                float amount = stof(child->Attribute("amount"));
-                float limit = stof(child->Attribute("limit"));
-                orderInfo.push_back(make_tuple(symbol, amount, limit));
-            }
-            else if(string(child->Name()) == "query"){
-                int id = stoi(child->Attribute("id"));
-                queryIDs.push_back(id);
-            }
-            else if(string(child->Name()) == "cancel"){
-                int id = stoi(child->Attribute("id"));
-                cancelIDs.push_back(id);
-            }
+void xmlParser::parseTransactions(XMLElement* element){
+    for(XMLElement* child = element->FirstChildElement(); child; child = child->NextSiblingElement()){
+        if(string(child->Name()) == "order"){
+            string symbol = child->Attribute("sym");
+            float amount = stof(child->Attribute("amount"));
+            float limit = stof(child->Attribute("limit"));
+            orderInfo.push_back(make_tuple(symbol, amount, limit));
+        }
+        else if(string(child->Name()) == "query"){
+            int id = stoi(child->Attribute("id"));
+            queryIDs.push_back(id);
+        }
+        else if(string(child->Name()) == "cancel"){
+            int id = stoi(child->Attribute("id"));
+            cancelIDs.push_back(id);
         }
     }
-
-};
+}
 
 
 int main() {

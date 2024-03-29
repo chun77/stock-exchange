@@ -30,7 +30,7 @@ int main() {
     }
 
     // 发送消息给服务器
-    const char * message = R"(1000
+    const char * message = R"(429
         <create>
             <account id="1" balance="100.5"/>
             <account id="2" balance="200.5"/>
