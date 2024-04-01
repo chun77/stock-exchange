@@ -53,7 +53,6 @@ int main() {
 
     cout << "Message sent to server: " << message << endl;
 
-    // 关闭套接字
     close(client_socket_fd);
 
     return 0;
