@@ -19,6 +19,14 @@ struct createSymResult{
     string errMsg;
 };
 
+struct transOrderResult{
+    string symbol;
+    float amount;
+    float limit;
+    int transID;
+    string errMsg;
+};
+
 class dbController {
 private:
     connection con;
@@ -29,8 +37,12 @@ public:
 
     void initializeAccount();
     void initializePosition();
+    void initializeOpened();
+    void initializeCanceled();
+    void initializeExecuted();
     createAccountResult insertAccount(int accountID, float balance);
     createSymResult insertSymbol(string symbol, int accountID, float NUM);
+    transOrderResult insertOpened(int accountID, string symbol, float amt, float limit);
 };
 
 #endif

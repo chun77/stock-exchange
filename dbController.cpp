@@ -43,6 +43,13 @@ createSymResult dbController::insertSymbol(string symbol, int accountID, float N
     }
 }
 
+/*transOrderResult dbController::insertOpened(int accountID, string symbol, float amt, float limit){
+    transOrderResult result;
+    result.symbol = symbol;
+    result.limit = limit;
+    result.amount = amt;
+    
+}*/
 
 void dbController::initializeAccount() {
     try {
@@ -53,9 +60,9 @@ void dbController::initializeAccount() {
                  "balance FLOAT"
                  ")");
         txn.commit();
-        std::cout << "Database initialized successfully." << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "Error initializing database: " << e.what() << std::endl;
+        std::cout << "Account initialized successfully." << std::endl;
+    } catch (const exception& e) {
+        std::cerr << "Error initializing account: " << e.what() << std::endl;
     }
 }
 
@@ -63,16 +70,74 @@ void dbController::initializePosition() {
     try{
         pqxx::work txn(con);
         txn.exec("CREATE TABLE IF NOT EXISTS Position ("
-                    "symbol TEXT,"
+                    "symbol VARCHAR(255),"
                     "accountID INT,"
                     "NUM FLOAT,"
                     "FOREIGN KEY (accountID) REFERENCES Account(accountID),"
                     "PRIMARY KEY (symbol, accountID)"
                     ")");
         txn.commit();
-        std::cout << "Database initialized successfully." << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "Error initializing database: " << e.what() << std::endl;
+        std::cout << "Position initialized successfully." << std::endl;
+    } catch (const exception& e) {
+        std::cerr << "Error initializing position: " << e.what() << std::endl;
+    }
+}
+
+void dbController::initializeOpened(){
+    try{
+        pqxx::work txn(con);
+        txn.exec(
+            "CREATE TABLE IF NOT EXISTS OpenOrder ("
+            "   transID SERIAL PRIMARY KEY,"
+            "   accountID INT REFERENCES Account(accountID),"
+            "   symbol VARCHAR(255),"
+            "   amt FLOAT,"
+            "   limit FLOAT"
+            ")"
+        );
+        txn.commit();
+        std::cout << "Opened initialized successfully." << std::endl;
+    } catch (const exception& e) {
+        std::cerr << "Error initializing opened: " << e.what() << std::endl;
+    }
+}
+
+void dbController::initializeCanceled(){
+    try {
+        pqxx::work txn(con);
+        txn.exec(
+            "CREATE TABLE IF NOT EXISTS OpenOrder ("
+            "   transID SERIAL PRIMARY KEY,"
+            "   accountID INT REFERENCES Account(accountID),"
+            "   symbol VARCHAR(255),"
+            "   amt FLOAT,"
+            "   time TIMESTAMP"
+            ")"
+        );
+        txn.commit();
+        cout << "Canceled table initialized successfully." << endl;
+    } catch (const exception& e) {
+        cerr << "Error initializing canceled: " << e.what() << endl;
+    }
+}
+
+void dbController::initializeExecuted(){
+    try {
+        pqxx::work txn(con);
+        txn.exec(
+            "CREATE TABLE IF NOT EXISTS OpenOrder ("
+            "   transID SERIAL PRIMARY KEY,"
+            "   accountID INT REFERENCES Account(accountID),"
+            "   symbol VARCHAR(255),"
+            "   price FLOAT,"
+            "   amt FLOAT,"
+            "   time TIMESTAMP"
+            ")"
+        );
+        txn.commit();
+        cout << "Executed table initialized successfully." << endl;
+    } catch (const exception& e) {
+        cerr << "Error initializing executed: " << e.what() << endl;
     }
 }
 
@@ -80,10 +145,10 @@ void dbController::initializePosition() {
 int main(){
     // PostgreSQL connection parameters
     std::string dbName = "exchange";
-    std::string user = "postgres"; // 替换为你的 PostgreSQL 用户名
-    std::string password = "passw0rd"; // 替换为你的 PostgreSQL 密码
-    std::string host = "localhost"; // 替换为你的 PostgreSQL 主机地址
-    std::string port = "5432"; // 替换为你的 PostgreSQL 端口号
+    std::string user = "postgres"; 
+    std::string password = "passw0rd";
+    std::string host = "localhost"; 
+    std::string port = "5432"; 
     // Create an instance of dbController
     dbController db(dbName, user, password, host, port);
     // Initialize the database (create tables if necessary)
