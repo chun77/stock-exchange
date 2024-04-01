@@ -72,6 +72,50 @@ int xmlSeqGenerator::addElement(string symbol, float amount, float limit, string
     return 0;
 }
 
+int xmlSeqGenerator::addElement(int transID, int oShares, canceledShares cShares, executedShares xShares){
+    XMLElement* queryElement = doc.NewElement("status");
+    queryElement->SetAttribute("id", transID);
+    XMLElement* oElement = doc.NewElement("open");
+    oElement->SetAttribute("shares", oShares);
+    queryElement->InsertEndChild(oElement);
+    for (const auto& canceled : cShares) {
+        XMLElement* canceledElement = doc.NewElement("canceled");
+        canceledElement->SetAttribute("shares", canceled.first);
+        canceledElement->SetAttribute("time", canceled.second);
+        queryElement->InsertEndChild(canceledElement);
+    }
+    for (const auto& executed : xShares) {
+        XMLElement* executedElement = doc.NewElement("executed");
+        executedElement->SetAttribute("shares", std::get<0>(executed));
+        executedElement->SetAttribute("price", std::get<1>(executed));
+        executedElement->SetAttribute("time", std::get<2>(executed));
+        queryElement->InsertEndChild(executedElement);
+    }
+    XMLElement* root = doc.RootElement();
+    root->InsertEndChild(queryElement);
+    return 0;
+}
+
+int xmlSeqGenerator::addElement(int transID, canceledShares cShares, executedShares xShares){
+    XMLElement* cancelElement = doc.NewElement("status");
+    cancelElement->SetAttribute("id", transID);
+    for (const auto& canceled : cShares) {
+        XMLElement* canceledElement = doc.NewElement("canceled");
+        canceledElement->SetAttribute("shares", canceled.first);
+        canceledElement->SetAttribute("time", canceled.second);
+        cancelElement->InsertEndChild(canceledElement);
+    }
+    for (const auto& executed : xShares) {
+        XMLElement* executedElement = doc.NewElement("executed");
+        executedElement->SetAttribute("shares", std::get<0>(executed));
+        executedElement->SetAttribute("price", std::get<1>(executed));
+        executedElement->SetAttribute("time", std::get<2>(executed));
+        cancelElement->InsertEndChild(executedElement);
+    }
+    XMLElement* root = doc.RootElement();
+    root->InsertEndChild(cancelElement);
+    return 0;
+}
 
 int main(){
     xmlSeqGenerator generator("results");
@@ -87,6 +131,15 @@ int main(){
     xmlSeqGenerator generator2("results");
     generator2.addElement("sym", 1.5, 2.8, 6);
     generator2.addElement("sym", 1.9, 2.6, "no account");
+    generator2.addElement(1234, 100, {}, {});
+
+    canceledShares cShares = {{50, 1609459200}, {30, 1609459300}};
+    executedShares xShares = {{20, 150, 1609459400}, {25, 155, 1609459500}};
+    generator2.addElement(1235, 200, cShares, xShares);
+
+    canceledShares cSharesOnly = {{70, 1609459600}, {40, 1609459700}};
+    generator2.addElement(1236, cSharesOnly, {});
+
 
     string ans2 = generator2.getXML();
     cout << ans2;

@@ -9,6 +9,8 @@
 
 using namespace tinyxml2;
 using namespace std;
+using canceledShares = vector<pair<float, time_t>>;
+using executedShares = vector<tuple<float, float, time_t>>;
 
 class xmlSeqGenerator{
 private:
@@ -26,8 +28,8 @@ public:
     // transactions Response
     int addElement(string symbol, float amount, float limit, int transID);
     int addElement(string symbol, float amount, float limit, string errMsg);
-    // TODO
-    // 剩下query和cancel
+    int addElement(int transID, int oShares, canceledShares cShares, executedShares xShares);
+    int addElement(int transID, canceledShares cShares, executedShares xShares);
 };
 
 #endif 
