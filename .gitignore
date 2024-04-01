@@ -6,5 +6,6 @@ xmlParser
 xmlSeqParser
 xmlGenerator
 xmlSeqGenerator
+dbController
 client
 server
