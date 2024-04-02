@@ -117,7 +117,7 @@ int xmlSeqGenerator::addElement(int transID, canceledShares cShares, executedSha
     return 0;
 }
 
-int main(){
+/*int main(){
     xmlSeqGenerator generator("results");
     generator.addElement(1234);
     generator.addElement(1235);
@@ -143,4 +143,4 @@ int main(){
 
     string ans2 = generator2.getXML();
     cout << ans2;
-}
+}*/

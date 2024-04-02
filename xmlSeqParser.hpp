@@ -14,6 +14,7 @@ using PairVec = vector<pair<int, float>>;
 
 class xmlSeqParser{
 private:
+    XMLDocument doc;
     pair<int, float> accountInfo;
     map<string, PairVec> symbolInfo;
 
@@ -25,7 +26,7 @@ private:
     XMLElement* currElement;
 
 public:
-    int parse(const char * xmlString, XMLDocument& doc);
+    int parse(const char * xmlString);
     int getNextCreate();
     int getNextTrans();
 

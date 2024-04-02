@@ -1,6 +1,6 @@
 #include "xmlSeqParser.hpp"
 
-int xmlSeqParser::parse(const char* xmlString, XMLDocument& doc){
+int xmlSeqParser::parse(const char* xmlString){
     if(doc.Parse(xmlString) != XML_SUCCESS){
         return -1;
     }
@@ -44,6 +44,7 @@ int xmlSeqParser::getNextCreate(){
         return 0;
     }
     else if(string(child->Name()) == "symbol"){
+        symbolInfo.clear();
         string symbol = child->Attribute("sym");
         for(XMLElement* symbolChild = child->FirstChildElement(); symbolChild; symbolChild = symbolChild->NextSiblingElement()){
             int accountID = stoi(symbolChild->Attribute("id"));
@@ -117,7 +118,7 @@ const int& xmlSeqParser::getCancelID() const {
 }
 
 
-int main() {
+/*int main() {
     const char* createString = R"(
         <create>
             <account id="1" balance="100.5"/>
@@ -146,7 +147,7 @@ int main() {
 
     XMLDocument doc;
     xmlSeqParser parser;
-    int result = parser.parse(createString, doc);
+    int result = parser.parse(createString);
     if(result == 0){
         while(true){
             int next = parser.getNextCreate();
@@ -169,7 +170,7 @@ int main() {
         }
     }
 
-    result = parser.parse(transactionXmlString, doc);
+    result = parser.parse(transactionXmlString);
     if(result == 1){
         cout << "account id: " << parser.getAccountIdForTrans() << endl;
         while(true){
@@ -195,4 +196,4 @@ int main() {
     }
 
     return 0;
-}
+}*/

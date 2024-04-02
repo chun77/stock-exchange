@@ -142,7 +142,7 @@ void dbController::initializeExecuted(){
 }
 
 
-int main(){
+/*int main(){
     // PostgreSQL connection parameters
     std::string dbName = "exchange";
     std::string user = "postgres"; 
@@ -206,4 +206,4 @@ int main(){
     }
 
     return 0;
-}
+}*/

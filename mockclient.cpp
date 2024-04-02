@@ -30,7 +30,7 @@ int main() {
     }
 
     // 发送消息给服务器
-    const char * message = R"(429
+    const char * message = R"(625
         <create>
             <account id="1" balance="100.5"/>
             <account id="2" balance="200.5"/>
@@ -41,6 +41,11 @@ int main() {
             <symbol sym="SYM2">
                 <account id="1">70.5</account>
                 <account id="2">80.5</account>
+            </symbol>
+            <account id="1" balance="100"/>
+            <symbol sym="SYM3">
+                <account id="186">70.5</account>
+                <account id="187">80.5</account>
             </symbol>
         </create>
     )";

@@ -1,5 +1,7 @@
 #include "server.hpp"
-#include "xmlParser.hpp"
+#include "xmlSeqParser.hpp"
+#include "dbController.hpp"
+#include "xmlSeqGenerator.hpp"
 
 server::server(): port("12345"), socket_fd(-1) {}
 
@@ -97,46 +99,38 @@ int main() {
         string xml_message = my_server.recvMessage(client_socket_fd);
         cout << "Received message from client: " << xml_message << endl;
 
-        xmlParser parser;
-        parser.parse(xml_message.c_str());
-        if(parser.getIsCreate() == true){
-            const vector<pair<int, float>>& accountInfo = parser.getAccountInfo();
-            const map<string, PairVec>& symbolInfo = parser.getSymbolInfo();
-            cout << "Account Info:" << endl;
-            for (const auto& pair : accountInfo) {
-                cout << "Account ID: " << pair.first << ", Balance: " << pair.second << endl;
-            }
-
-            cout << endl << "Symbol Info:" << endl;
-            for (const auto& pair : symbolInfo) {
-                cout << "Symbol: " << pair.first << endl;
-                const PairVec& vec = pair.second;
-                for (const auto& subPair : vec) {
-                    cout << "Account ID: " << subPair.first << ", NUM: " << subPair.second << endl;
+        xmlSeqParser parser;
+        dbController dbCtrler("exchange", "postgres", "passw0rd", "localhost", "5432");
+        xmlSeqGenerator generator("result");
+        int result = parser.parse(xml_message.c_str());
+        if(result == 0){
+            while ((result = parser.getNextCreate()) != -1){
+                if(result == 0){
+                    pair<int, float> accountInfo = parser.getAccountInfo();
+                    createAccountResult car = dbCtrler.insertAccount(accountInfo.first, accountInfo.second);
+                    if(car.errMsg == ""){
+                        generator.addElement(car.accountID);
+                    }else{
+                        generator.addElement(car.accountID, car.errMsg);
+                    }
+                } else if (result == 1){
+                    map<string, PairVec> symbolInfo = parser.getSymbolInfo();
+                    string symbol = symbolInfo.begin()->first;
+                    PairVec actAndNum = symbolInfo.begin()->second;
+                    for(const auto& pair: actAndNum){
+                        createSymResult csr = dbCtrler.insertSymbol(symbol, pair.first, pair.second);
+                        if(csr.errMsg == ""){
+                            generator.addElement(csr.symbol, csr.accountID);
+                        } else {
+                            generator.addElement(csr.symbol, csr.accountID, csr.errMsg);
+                        }
+                    }
                 }
             }
         }
-        else if(parser.getIsTrans() == true){
-            cout << endl << "Transaction Info:" << endl;
-            cout << "account id: " << parser.getAccountIdForTrans() << endl;
-            cout << "Orders:" << endl;
-            for (const auto& order : parser.getOrderInfo()) {
-                cout << "Symbol: " << get<0>(order) << ", ";
-                cout << "Amount: " << get<1>(order) << ", ";
-                cout << "Limit: " << get<2>(order) << endl;
-            }
 
-            cout << endl << "Queries:" << endl;
-            for (int queryID : parser.getQueryIDs()) {
-                cout << "Query ID: " << queryID << endl;
-            }
-
-            cout << endl << "Cancellations:" << endl;
-            for (int cancelID : parser.getCancelIDs()) {
-                cout << "Cancel ID: " << cancelID << endl;
-            }
-        }
-
+        string xmlResponse = generator.getXML();
+        cout << xmlResponse << endl;
         close(client_socket_fd);
         cout << "Connection closed." << endl;
     }
