@@ -48,8 +48,92 @@ createSymResult dbController::insertSymbol(string symbol, int accountID, float N
     result.symbol = symbol;
     result.limit = limit;
     result.amount = amt;
-    
 }*/
+
+transCancelResult dbController::insertCanceled(int transID){
+    transCancelResult result;
+    result.transID = transID;
+    try {
+        // Check if transID exists in OpenedOrder table
+        pqxx::work txn(con);
+        pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID));
+        if (res.empty()) {
+            result.errMsg = "No transaction found with transID: " + std::to_string(transID);
+            return result;
+        }
+        // Get details of the transaction
+        float canceledShares;
+        time_t cancelTime = time(nullptr);
+        canceledShares = res[0]["amt"].as<float>();
+        
+        // Insert into CanceledOrder table
+        txn.exec("INSERT INTO CanceledOrder (transID, accountID, symbol, amt, time) SELECT transID, accountID, symbol, amt, " + txn.quote(cancelTime) + " FROM OpenedOrder WHERE transID = " + txn.quote(transID));
+        
+        // Delete from OpenedOrder table
+        txn.exec("DELETE FROM OpenedOrder WHERE transID = " + txn.quote(transID));
+        
+        txn.commit();
+        
+        result.canceledShares = canceledShares;
+        result.cancelTime = cancelTime;
+
+        pqxx::result executedRes = txn.exec(
+            "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
+        );
+        for (const auto& row : executedRes) {
+            float amt = row["amt"].as<float>();
+            float price = row["price"].as<float>();
+            time_t t = row["time"].as<time_t>();
+            result.executedShares.push_back(std::make_tuple(amt, price, t));
+        }
+        
+        std::cout << "Transaction canceled successfully." << std::endl;
+    } catch (const std::exception& e) {
+        result.errMsg = "Error canceling transaction: " + std::string(e.what());
+    }
+    return result;
+}
+
+transQueryResult dbController::queryShares(int transID){
+    transQueryResult result;
+    try {
+        pqxx::work txn(con);
+
+        // 1. Query Opened table
+        pqxx::result openedRes = txn.exec(
+            "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
+        );
+        if (!openedRes.empty()) {
+            result.openedShares = openedRes[0]["amt"].as<float>();
+        }
+
+        // 2. Query Canceled table
+        pqxx::result canceledRes = txn.exec(
+            "SELECT amt, time FROM CanceledOrder WHERE transID = " + txn.quote(transID)
+        );
+        if (!canceledRes.empty()) {
+            result.canceledShares = canceledRes[0]["amt"].as<float>();
+            result.cancelTime = canceledRes[0]["time"].as<time_t>();
+        }
+
+        // 3. Query Executed table
+        pqxx::result executedRes = txn.exec(
+            "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
+        );
+        for (const auto& row : executedRes) {
+            float amt = row["amt"].as<float>();
+            float price = row["price"].as<float>();
+            time_t t = row["time"].as<time_t>();
+            result.executedShares.push_back(std::make_tuple(amt, price, t));
+        }
+
+        txn.commit();
+    } catch (const std::exception& e) {
+        // Handle exceptions
+        std::cerr << "Error querying shares: " << e.what() << std::endl;
+    }
+    return result;
+}
 
 void dbController::initializeAccount() {
     try {
@@ -87,7 +171,7 @@ void dbController::initializeOpened(){
     try{
         pqxx::work txn(con);
         txn.exec(
-            "CREATE TABLE IF NOT EXISTS OpenOrder ("
+            "CREATE TABLE IF NOT EXISTS OpenedOrder ("
             "   transID SERIAL PRIMARY KEY,"
             "   accountID INT REFERENCES Account(accountID),"
             "   symbol VARCHAR(255),"
@@ -106,7 +190,7 @@ void dbController::initializeCanceled(){
     try {
         pqxx::work txn(con);
         txn.exec(
-            "CREATE TABLE IF NOT EXISTS OpenOrder ("
+            "CREATE TABLE IF NOT EXISTS CanceledOrder ("
             "   transID SERIAL PRIMARY KEY,"
             "   accountID INT REFERENCES Account(accountID),"
             "   symbol VARCHAR(255),"
@@ -125,7 +209,7 @@ void dbController::initializeExecuted(){
     try {
         pqxx::work txn(con);
         txn.exec(
-            "CREATE TABLE IF NOT EXISTS OpenOrder ("
+            "CREATE TABLE IF NOT EXISTS ExecutedOrder ("
             "   transID SERIAL PRIMARY KEY,"
             "   accountID INT REFERENCES Account(accountID),"
             "   symbol VARCHAR(255),"
@@ -140,6 +224,7 @@ void dbController::initializeExecuted(){
         cerr << "Error initializing executed: " << e.what() << endl;
     }
 }
+
 
 
 /*int main(){

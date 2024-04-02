@@ -27,6 +27,23 @@ struct transOrderResult{
     string errMsg;
 };
 
+struct transCancelResult{
+    int transID;
+    float canceledShares;
+    time_t cancelTime;
+    vector<tuple<float, float, time_t>> executedShares;
+    string errMsg;
+};
+
+struct transQueryResult{
+    int transID;
+    float openedShares;
+    float canceledShares;
+    time_t cancelTime;
+    vector<tuple<float, float, time_t>> executedShares;
+};
+
+
 class dbController {
 private:
     connection con;
@@ -43,6 +60,11 @@ public:
     createAccountResult insertAccount(int accountID, float balance);
     createSymResult insertSymbol(string symbol, int accountID, float NUM);
     transOrderResult insertOpened(int accountID, string symbol, float amt, float limit);
+    transCancelResult insertCanceled(int transID);
+
+    transQueryResult queryShares(int transID);
+
+
 };
 
 #endif
