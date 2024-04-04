@@ -72,18 +72,18 @@ int xmlSeqGenerator::addElement(string symbol, float amount, float limit, string
     return 0;
 }
 
-int xmlSeqGenerator::addElement(int transID, int oShares, canceledShares cShares, executedShares xShares){
+int xmlSeqGenerator::addElement(int transID, float oShares, float cShares, time_t cTime, executedShares xShares){
     XMLElement* queryElement = doc.NewElement("status");
     queryElement->SetAttribute("id", transID);
     XMLElement* oElement = doc.NewElement("open");
     oElement->SetAttribute("shares", oShares);
     queryElement->InsertEndChild(oElement);
-    for (const auto& canceled : cShares) {
-        XMLElement* canceledElement = doc.NewElement("canceled");
-        canceledElement->SetAttribute("shares", canceled.first);
-        canceledElement->SetAttribute("time", canceled.second);
-        queryElement->InsertEndChild(canceledElement);
-    }
+
+    XMLElement* canceledElement = doc.NewElement("canceled");
+    canceledElement->SetAttribute("shares", cShares);
+    canceledElement->SetAttribute("time", cTime);
+    queryElement->InsertEndChild(canceledElement);
+
     for (const auto& executed : xShares) {
         XMLElement* executedElement = doc.NewElement("executed");
         executedElement->SetAttribute("shares", std::get<0>(executed));
@@ -96,15 +96,15 @@ int xmlSeqGenerator::addElement(int transID, int oShares, canceledShares cShares
     return 0;
 }
 
-int xmlSeqGenerator::addElement(int transID, canceledShares cShares, executedShares xShares){
+int xmlSeqGenerator::addElement(int transID, float cShares, time_t cTime, executedShares xShares){
     XMLElement* cancelElement = doc.NewElement("status");
     cancelElement->SetAttribute("id", transID);
-    for (const auto& canceled : cShares) {
-        XMLElement* canceledElement = doc.NewElement("canceled");
-        canceledElement->SetAttribute("shares", canceled.first);
-        canceledElement->SetAttribute("time", canceled.second);
-        cancelElement->InsertEndChild(canceledElement);
-    }
+
+    XMLElement* canceledElement = doc.NewElement("canceled");
+    canceledElement->SetAttribute("shares", cShares);
+    canceledElement->SetAttribute("time", cTime);
+    cancelElement->InsertEndChild(canceledElement);
+
     for (const auto& executed : xShares) {
         XMLElement* executedElement = doc.NewElement("executed");
         executedElement->SetAttribute("shares", std::get<0>(executed));

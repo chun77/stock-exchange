@@ -127,6 +127,32 @@ int main() {
                     }
                 }
             }
+        } else if(result == 1){
+            while((result = parser.getNextTrans()) != -1){
+                if(result == 0){
+                    int accountID = parser.getAccountIdForTrans();
+                    tuple<string, float, float> orderInfo = parser.getOrderInfo();
+                    transOrderResult tor = dbCtrler.insertOpened(accountID, get<0>(orderInfo), get<1>(orderInfo), get<2>(orderInfo));
+                    if(tor.errMsg == ""){
+                        generator.addElement(tor.symbol, tor.amount, tor.limit, tor.transID);
+                    } else {
+                        generator.addElement(tor.symbol, tor.amount, tor.limit, tor.errMsg);
+                    }
+                } else if (result == 1){
+                    int queryID = parser.getQueryID();
+                    transQueryResult tqr = dbCtrler.queryShares(queryID);
+                    // TODO error handling
+                    generator.addElement(tqr.transID, tqr.openedShares, tqr.canceledShares, tqr.cancelTime, tqr.executedShares);
+                } else if (result == 2){
+                    int cancelID = parser.getCancelID();
+                    transCancelResult tcr = dbCtrler.insertCanceled(cancelID);
+                    if(tcr.errMsg == ""){
+                        generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
+                    } else {
+                        // TODO error handling
+                    }
+                }
+            }
         }
 
         string xmlResponse = generator.getXML();

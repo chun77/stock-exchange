@@ -41,6 +41,7 @@ struct transQueryResult{
     float canceledShares;
     time_t cancelTime;
     vector<tuple<float, float, time_t>> executedShares;
+    string errMsg;
 };
 
 
