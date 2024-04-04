@@ -142,8 +142,7 @@ transQueryResult dbController::queryShares(int transID){
     result.errMsg = "";
     result.cancelTime = time(NULL);
     try {
-        pqxx::work txn(con);
-        // 1. Query Opened table
+        pqxx::work txn(con, "repeatable read");
         pqxx::result openedRes = txn.exec(
             "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
         );
@@ -408,7 +407,7 @@ void test_queryShares(dbController& db){
 }
 
 
-int main(){
+/*int main(){
     // Create an instance of dbController
     dbController db("exchange", "postgres", "passw0rd", "localhost", "5432");
     // Initialize the database (create tables if necessary)
@@ -424,4 +423,4 @@ int main(){
     test_insertCanceled(db);
     test_queryShares(db);
     return 0;
-}
+}*/

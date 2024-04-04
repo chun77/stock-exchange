@@ -3,6 +3,8 @@
 #include "dbController.hpp"
 #include "xmlSeqGenerator.hpp"
 
+using namespace std;
+
 server::server(): port("12345"), socket_fd(-1) {}
 
 void server::setupServer(){
@@ -91,17 +93,22 @@ int main() {
     my_server.setupServer();
 
     cout << "Server setup complete. Waiting for connections..." << endl;
+    dbController dbCtrler("exchange", "postgres", "passw0rd", "localhost", "5432");
+    dbCtrler.initializeAccount();
+    dbCtrler.initializePosition();
+    dbCtrler.initializeOpened();
+    dbCtrler.initializeCanceled();
+    dbCtrler.initializeExecuted();
+
+    unsigned int client_socket_fd = my_server.acceptConnection();
+    cout << "Connection accepted. Receiving message..." << endl;
 
     while (true) {
-        unsigned int client_socket_fd = my_server.acceptConnection();
-        cout << "Connection accepted. Receiving message..." << endl;
-
         string xml_message = my_server.recvMessage(client_socket_fd);
         cout << "Received message from client: " << xml_message << endl;
 
         xmlSeqParser parser;
-        dbController dbCtrler("exchange", "postgres", "passw0rd", "localhost", "5432");
-        xmlSeqGenerator generator("result");
+        xmlSeqGenerator generator("results");
         int result = parser.parse(xml_message.c_str());
         if(result == 0){
             while ((result = parser.getNextCreate()) != -1){
@@ -146,19 +153,15 @@ int main() {
                 } else if (result == 2){
                     int cancelID = parser.getCancelID();
                     transCancelResult tcr = dbCtrler.insertCanceled(cancelID);
-                    if(tcr.errMsg == ""){
-                        generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
-                    } else {
-                        // TODO error handling
-                    }
+                    // TODO error handling
+                    generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
                 }
             }
         }
 
         string xmlResponse = generator.getXML();
         cout << xmlResponse << endl;
-        close(client_socket_fd);
-        cout << "Connection closed." << endl;
+        //cout << "Connection closed." << endl;
     }
 
     return 0;
