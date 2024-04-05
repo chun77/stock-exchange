@@ -156,12 +156,12 @@ void dbController::matchOrders(pqxx::work& txn, int accountID, int newTransID, c
 
 void dbController::updateBuyerPosition(pqxx::work& txn, int accountID, const string& symbol, float amt) {
     // 在Position表中为买方增加股票数量
-    // 实现细节...
+    txn.exec("UPDATE Position SET NUM = NUM + " + txn.quote(amt) + " WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol));
 }
 
 void dbController::updateSellerAccount(pqxx::work& txn, int accountID, float amount) {
     // 在Account表中为卖方增加余额
-    // 实现细节...
+    txn.exec("UPDATE Account SET balance = balance + " + txn.quote(amount) + " WHERE accountID = " + txn.quote(accountID));
 }
 
 
