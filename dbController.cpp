@@ -86,6 +86,10 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
             // Insert into OpenedOrder table
             transIDRes = txn.exec("INSERT INTO OpenedOrder (accountID, symbol, amt, price_limit, time) VALUES (" + txn.quote(accountID) + ", " + txn.quote(symbol) + ", " + txn.quote(amt) + ", " + txn.quote(limit) + ", " + txn.quote(time(NULL)) + ") RETURNING transID");
         }
+
+        // match orders
+        matchOrders(txn, accountID, transIDRes[0][0].as<int>(), symbol, amt, limit);
+
         // Commit transaction
         txn.commit();
         // Set result transID
@@ -95,6 +99,72 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
     }
     return result;
 }
+
+// 在 matchOrders 中处理匹配逻辑
+void dbController::matchOrders(pqxx::work& txn, int accountID, int newTransID, const string& symbol, float amt, float limit) {
+    try {
+        string priceMatchCondition;
+        if (amt > 0) {
+            // 买单寻找价格小于等于买单limit的卖单
+            priceMatchCondition = "price_limit <= " + txn.quote(limit);
+        } else {
+            // 卖单寻找价格大于等于卖单limit的买单
+            priceMatchCondition = "price_limit >= " + txn.quote(limit);
+        }
+
+        // 构造SQL查询
+        string sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
+                    "WHERE symbol = " + txn.quote(symbol) + " "
+                    "AND amt * " + txn.quote(amt) + " < 0 " // 确保买卖方向相反
+                    "AND " + priceMatchCondition + " " // 根据买卖方向应用不同的价格条件
+                    "ORDER BY time ASC LIMIT 1"; // 选择最早的一个匹配订单
+
+        pqxx::result res = txn.exec(sql);
+
+        if (!res.empty()) {
+            auto row = res[0];
+            int matchTransID = row["transID"].as<int>();
+            int matchAccountID = row["accountID"].as<int>();
+            float matchAmt = std::abs(row["amt"].as<float>());
+            float matchLimit = row["price_limit"].as<float>();
+
+            // 确定交易数量和价格
+            float tradeAmt = std::min(std::abs(amt), matchAmt);
+            float executionPrice = matchLimit; // 以匹配订单的价格执行
+
+            // 更新买方的Position（对于买单）或Account（对于卖单）
+            if (amt > 0) {
+                // 买方：增加Position
+                updateBuyerPosition(txn, accountID, symbol, tradeAmt);
+                // 卖方：增加Account余额
+                updateSellerAccount(txn, matchAccountID, executionPrice * tradeAmt);
+            } else {
+                // 卖方：增加Account余额
+                updateSellerAccount(txn, accountID, executionPrice * tradeAmt);
+                // 买方：增加Position
+                updateBuyerPosition(txn, matchAccountID, symbol, tradeAmt);
+            }
+
+            // 标记原始订单和匹配订单为执行状态...
+        }
+        // 更多的匹配和执行逻辑...
+    } catch (const std::exception& e) {
+        // 错误处理
+        throw;
+    }
+}
+
+void dbController::updateBuyerPosition(pqxx::work& txn, int accountID, const string& symbol, float amt) {
+    // 在Position表中为买方增加股票数量
+    // 实现细节...
+}
+
+void dbController::updateSellerAccount(pqxx::work& txn, int accountID, float amount) {
+    // 在Account表中为卖方增加余额
+    // 实现细节...
+}
+
+
 
 transCancelResult dbController::insertCanceled(int transID){
     transCancelResult result;
