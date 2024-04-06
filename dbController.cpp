@@ -592,7 +592,7 @@ void test_queryShares(dbController& db){
 }
 
 
-int main(){
+/*int main(){
     // Create an instance of dbController
     dbController db("exchange", "postgres", "passw0rd", "localhost", "5432");
     // Initialize the database (create tables if necessary)
@@ -608,4 +608,4 @@ int main(){
     test_insertCanceled(db);
     test_queryShares(db);
     return 0;
-}
+}*/

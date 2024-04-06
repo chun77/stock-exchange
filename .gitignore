@@ -7,5 +7,5 @@ xmlSeqParser
 xmlGenerator
 xmlSeqGenerator
 dbController
-client
-server
+mockclient
+main

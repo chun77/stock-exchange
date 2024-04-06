@@ -30,6 +30,7 @@ public:
     int addElement(string symbol, float amount, float limit, string errMsg);
     int addElement(int transID, float oShares, float cShares, time_t cTime, executedShares xShares);
     int addElement(int transID, float cShares, time_t cTime, executedShares xShares);
+    int addElement(int transID, float cShares, time_t cTime, executedShares xShares, string errMsg);
 };
 
 #endif 

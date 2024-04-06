@@ -135,8 +135,11 @@ void server::handleRequest(const string& xmlMsg){
             } else if (result == 2){
                 int cancelID = parser.getCancelID();
                 transCancelResult tcr = dbCtrler.insertCanceled(cancelID);
-                // TODO error handling
-                generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
+                if(tcr.errMsg == ""){
+                    generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
+                } else {
+                    generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares, tcr.errMsg);
+                }
             }
         }
     }

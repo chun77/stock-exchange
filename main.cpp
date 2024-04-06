@@ -22,11 +22,9 @@ int main() {
         cout << "Connection accepted. Receiving message..." << endl;
         string xml_message = my_server.recvMessage(client_socket_fd);
         cout << "Received message from client: " << xml_message << endl;
-        // 创建新线程处理请求
-        thread request_thread(&server::handleRequest, my_server, xml_message); 
 
-        // 在新线程上运行 handleRequest，处理请求
-        request_thread.detach(); // 分离新线程，让其在后台运行
+        thread request_thread(&server::handleRequest, my_server, xml_message); 
+        request_thread.detach(); 
     }
     return 0;
 }
