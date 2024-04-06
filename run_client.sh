@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# 要并发运行的客户端数量
+# concurrent client count
 CLIENT_COUNT=10
 
-# 客户端程序的路径
+# client executable
 CLIENT="./mockclient"
 
-# 使用循环并发启动多个客户端实例
+# start clients
 for ((i=0; i<$CLIENT_COUNT; i++))
 do
    $CLIENT &
 done
 
-# 等待所有后台进程结束
+# wait for all clients to finish
 wait
