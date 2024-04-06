@@ -20,7 +20,7 @@ createSymResult dbController::insertSymbol(string symbol, int accountID, float N
     result.symbol = symbol;
     try{
         // Check if accountID exists in Account table
-        pqxx::work txn(con);
+        transaction<serializable> txn(con);
         pqxx::result res = txn.exec("SELECT COUNT(*) FROM Account WHERE accountID = " + txn.quote(accountID));
         int count = res[0][0].as<int>();
         if (count == 0) {
@@ -45,7 +45,7 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
     result.limit = limit;
     result.amount = amt;
     try {
-        pqxx::work txn(con);
+        transaction<serializable> txn(con);
         // Check if accountID exists in Account table
         pqxx::result res = txn.exec("SELECT COUNT(*) FROM Account WHERE accountID = " + txn.quote(accountID));
         int count = res[0][0].as<int>();
@@ -89,7 +89,6 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
 
         // match orders
         matchOrders(txn, accountID, transIDRes[0][0].as<int>(), symbol, amt, limit);
-
         // Commit transaction
         txn.commit();
         // Set result transID
@@ -100,27 +99,34 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
     return result;
 }
 
-// 在 matchOrders 中处理匹配逻辑
-void dbController::matchOrders(pqxx::work& txn, int accountID, int newTransID, const string& symbol, float amt, float limit) {
+void dbController::matchOrders(transaction<serializable>& txn, int accountID, int newTransID, const string& symbol, float amt, float limit) {
     try {
         string priceMatchCondition;
+        string sql;
         if (amt > 0) {
-            // 买单寻找价格小于等于买单limit的卖单
             priceMatchCondition = "price_limit <= " + txn.quote(limit);
+            sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
+             "WHERE symbol = " + txn.quote(symbol) + " "
+             "AND amt * " + txn.quote(amt) + " < 0 " 
+             "AND " + priceMatchCondition + " " 
+             "AND accountID != " + to_string(accountID) + " " 
+             "ORDER BY price_limit ASC, time ASC ";
+             // withoud LIMIT 1? Because we may need to match many orders?
         } else {
-            // 卖单寻找价格大于等于卖单limit的买单
             priceMatchCondition = "price_limit >= " + txn.quote(limit);
+            sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
+             "WHERE symbol = " + txn.quote(symbol) + " "
+             "AND amt * " + txn.quote(amt) + " < 0 " 
+             "AND " + priceMatchCondition + " " 
+             "AND accountID != " + to_string(accountID) + " "
+             "ORDER BY price_limit DESC, time ASC ";
         }
 
-        // 构造SQL查询
-        string sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
-                    "WHERE symbol = " + txn.quote(symbol) + " "
-                    "AND amt * " + txn.quote(amt) + " < 0 " // 确保买卖方向相反
-                    "AND " + priceMatchCondition + " " // 根据买卖方向应用不同的价格条件
-                    "ORDER BY time ASC LIMIT 1"; // 选择最早的一个匹配订单
-
         pqxx::result res = txn.exec(sql);
-
+        float remainingAmt = amt;
+        while(remainingAmt != 0){
+            
+        }
         if (!res.empty()) {
             auto row = res[0];
             int matchTransID = row["transID"].as<int>();
@@ -154,24 +160,22 @@ void dbController::matchOrders(pqxx::work& txn, int accountID, int newTransID, c
     }
 }
 
-void dbController::updateBuyerPosition(pqxx::work& txn, int accountID, const string& symbol, float amt) {
+void dbController::updateBuyerPosition(transaction<serializable>& txn, int accountID, const string& symbol, float amt) {
     // 在Position表中为买方增加股票数量
     txn.exec("UPDATE Position SET NUM = NUM + " + txn.quote(amt) + " WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol));
 }
 
-void dbController::updateSellerAccount(pqxx::work& txn, int accountID, float amount) {
+void dbController::updateSellerAccount(transaction<serializable>& txn, int accountID, float amount) {
     // 在Account表中为卖方增加余额
     txn.exec("UPDATE Account SET balance = balance + " + txn.quote(amount) + " WHERE accountID = " + txn.quote(accountID));
 }
-
-
 
 transCancelResult dbController::insertCanceled(int transID){
     transCancelResult result;
     result.transID = transID;
     try {
         // Check if transID exists in OpenedOrder table
-        pqxx::work txn(con);
+        transaction<serializable> txn(con);
         pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + "FOR UPDATE");
         if (res.empty()) {
             result.errMsg = "No transaction found with transID: " + std::to_string(transID) + "\n";
@@ -212,7 +216,7 @@ transQueryResult dbController::queryShares(int transID){
     result.errMsg = "";
     result.cancelTime = time(NULL);
     try {
-        pqxx::work txn(con, "repeatable read");
+        transaction<serializable> txn(con, "repeatable read");
         pqxx::result openedRes = txn.exec(
             "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
         );
