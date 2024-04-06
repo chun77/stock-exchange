@@ -4,7 +4,7 @@
 CLIENT_COUNT=10
 
 # client executable
-CLIENT="./mockclient"
+CLIENT="./client"
 
 # start clients
 for ((i=0; i<$CLIENT_COUNT; i++))
