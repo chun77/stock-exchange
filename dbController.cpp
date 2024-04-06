@@ -104,74 +104,116 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
 }
 
 void dbController::matchOrders(transaction<serializable>& txn, int accountID, int newTransID, const string& symbol, float amt, float limit) {
-    try {
-        string priceMatchCondition;
-        string sql;
-        if (amt > 0) {
-            priceMatchCondition = "price_limit <= " + txn.quote(limit);
-            sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
-             "WHERE symbol = " + txn.quote(symbol) + " "
-             "AND amt * " + txn.quote(amt) + " < 0 " 
-             "AND " + priceMatchCondition + " " 
-             "AND accountID != " + to_string(accountID) + " " 
-             "ORDER BY price_limit ASC, time ASC ";
-             // withoud LIMIT 1? Because we may need to match many orders?
-        } else {
-            priceMatchCondition = "price_limit >= " + txn.quote(limit);
-            sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
-             "WHERE symbol = " + txn.quote(symbol) + " "
-             "AND amt * " + txn.quote(amt) + " < 0 " 
-             "AND " + priceMatchCondition + " " 
-             "AND accountID != " + to_string(accountID) + " "
-             "ORDER BY price_limit DESC, time ASC ";
-        }
-
-        pqxx::result res = txn.exec(sql);
-        float remainingAmt = amt;
-        while(remainingAmt != 0){
-            
-        }
-        if (!res.empty()) {
-            auto row = res[0];
-            int matchTransID = row["transID"].as<int>();
-            int matchAccountID = row["accountID"].as<int>();
-            float matchAmt = std::abs(row["amt"].as<float>());
-            float matchLimit = row["price_limit"].as<float>();
-
-            // 确定交易数量和价格
-            float tradeAmt = std::min(std::abs(amt), matchAmt);
-            float executionPrice = matchLimit; // 以匹配订单的价格执行
-
-            // 更新买方的Position（对于买单）或Account（对于卖单）
+    float remainingAmt = amt;
+    while(remainingAmt != 0){ //只要还有剩余的amt没match就要尝试match
+        try {
+            string priceMatchCondition;
+            string sql;
             if (amt > 0) {
-                // 买方：增加Position
-                updateBuyerPosition(txn, accountID, symbol, tradeAmt);
-                // 卖方：增加Account余额
-                updateSellerAccount(txn, matchAccountID, executionPrice * tradeAmt);
+                priceMatchCondition = "price_limit <= " + txn.quote(limit);
+                sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
+                "WHERE symbol = " + txn.quote(symbol) + " "
+                "AND amt * " + txn.quote(amt) + " < 0 " 
+                "AND " + priceMatchCondition + " " 
+                "AND accountID != " + to_string(accountID) + " " 
+                "ORDER BY price_limit ASC, time ASC "
+                "LIMIT 1";
+                // withoud LIMIT 1? Because we may need to match many orders?
             } else {
-                // 卖方：增加Account余额
-                updateSellerAccount(txn, accountID, executionPrice * tradeAmt);
-                // 买方：增加Position
-                updateBuyerPosition(txn, matchAccountID, symbol, tradeAmt);
+                priceMatchCondition = "price_limit >= " + txn.quote(limit);
+                sql = "SELECT transID, accountID, symbol, amt, price_limit FROM OpenedOrder "
+                "WHERE symbol = " + txn.quote(symbol) + " "
+                "AND amt * " + txn.quote(amt) + " < 0 " 
+                "AND " + priceMatchCondition + " " 
+                "AND accountID != " + to_string(accountID) + " "
+                "ORDER BY price_limit DESC, time ASC "
+                "LIMIT 1";
             }
 
-            // 标记原始订单和匹配订单为执行状态...
+            pqxx::result res = txn.exec(sql);
+            if (!res.empty()) {
+                auto row = res[0];
+                int matchTransID = row["transID"].as<int>();
+                int matchAccountID = row["accountID"].as<int>();
+                float matchAmt = std::abs(row["amt"].as<float>());
+                float matchLimit = row["price_limit"].as<float>();
+
+                float tradeAmt = std::min(std::abs(amt), matchAmt);
+                float executionPrice = matchLimit; 
+
+                if (amt > 0) {
+                    updateBuyerPosition(txn, accountID, symbol, tradeAmt);
+                    updateSellerAccount(txn, matchAccountID, executionPrice * tradeAmt);
+                    updateOpened(txn, newTransID, tradeAmt);
+                    updateOpened(txn, matchTransID, -tradeAmt);
+                    updateExecuted(txn, newTransID, accountID, symbol, executionPrice, tradeAmt);
+                    updateExecuted(txn, matchTransID, matchAccountID, symbol, executionPrice, -tradeAmt);
+                } else {
+                    updateSellerAccount(txn, accountID, executionPrice * tradeAmt);
+                    updateBuyerPosition(txn, matchAccountID, symbol, tradeAmt);
+                    updateOpened(txn, newTransID, -tradeAmt);
+                    updateOpened(txn, matchTransID, tradeAmt);
+                    updateExecuted(txn, newTransID, accountID, symbol, executionPrice, -tradeAmt);
+                    updateExecuted(txn, matchTransID, matchAccountID, symbol, executionPrice, tradeAmt);
+                }
+                if(remainingAmt > 0){
+                    remainingAmt = remainingAmt - tradeAmt;
+                } else {
+                    remainingAmt = remainingAmt + tradeAmt;
+                }
+                
+            } else {return;}
+            // 如果没有order可以match了就直接退出
+        } catch (const exception& e) {
+            // 错误处理
+            throw;
         }
-        // 更多的匹配和执行逻辑...
-    } catch (const std::exception& e) {
-        // 错误处理
-        throw;
     }
 }
 
 void dbController::updateBuyerPosition(transaction<serializable>& txn, int accountID, const string& symbol, float amt) {
-    // 在Position表中为买方增加股票数量
-    txn.exec("UPDATE Position SET NUM = NUM + " + txn.quote(amt) + " WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol));
+    string checkExistenceSql = "SELECT COUNT(*) AS count FROM Position WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol);
+    pqxx::result existenceResult = txn.exec(checkExistenceSql);
+    int rowCount = existenceResult[0]["count"].as<int>();
+    if (rowCount > 0) {
+        txn.exec("UPDATE Position SET NUM = NUM + " + txn.quote(amt) + " WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol));
+    } else {
+        txn.exec("INSERT INTO Position (symbol, accountID, NUM) VALUES (" + txn.quote(symbol)+ ", " + txn.quote(accountID) + ", " + txn.quote(amt) + ")");
+    }
 }
 
 void dbController::updateSellerAccount(transaction<serializable>& txn, int accountID, float amount) {
-    // 在Account表中为卖方增加余额
     txn.exec("UPDATE Account SET balance = balance + " + txn.quote(amount) + " WHERE accountID = " + txn.quote(accountID));
+}
+
+void dbController::updateOpened(transaction<serializable>& txn, int transID, float amt){
+    string selectSql = "SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID);
+    result result = txn.exec(selectSql);
+    if (!result.empty()) {
+        auto row = result[0];
+        float currentAmt = row["amt"].as<float>();
+        float updatedAmt = currentAmt - amt;
+        if (updatedAmt <= 0) {
+            string deleteSql = "DELETE FROM OpenedOrder WHERE transID = " + txn.quote(transID);
+            txn.exec(deleteSql);
+        } else {
+            string updateSql = "UPDATE OpenedOrder SET amt = " + txn.quote(updatedAmt) + " WHERE transID = " + txn.quote(transID);
+            txn.exec(updateSql);
+        }
+    } else {
+        std::cout << "No record found with transID: " << transID << std::endl;
+    }
+}
+
+void dbController::updateExecuted(transaction<serializable>& txn, int transID, int accountID, const string& symbol, float price, float amt){
+    string insertSql = "INSERT INTO ExecutedOrder (transID, accountID, symbol, price, amt, time) VALUES ("
+                       + txn.quote(transID) + ", "
+                       + txn.quote(accountID) + ", "
+                       + txn.quote(symbol) + ", "
+                       + txn.quote(price) + ", "
+                       + txn.quote(amt) + ", " 
+                       + txn.quote(time(NULL)) + ")";
+    txn.exec(insertSql);
 }
 
 transCancelResult dbController::insertCanceled(int transID){
@@ -339,7 +381,7 @@ void dbController::initializeExecuted(){
         txn.exec("DROP TABLE IF EXISTS ExecutedOrder");
         txn.exec(
             "CREATE TABLE ExecutedOrder ("
-            "   transID SERIAL PRIMARY KEY,"
+            "   transID INT,"
             "   accountID INT REFERENCES Account(accountID),"
             "   symbol VARCHAR(255),"
             "   price FLOAT,"
@@ -355,7 +397,7 @@ void dbController::initializeExecuted(){
 }
 
 void test_insertAccount(dbController& db){
-    createAccountResult result = db.insertAccount(123, 1000.0);
+    createAccountResult result = db.insertAccount(123, 1000000);
     // Handle the result
     if (result.errMsg == "") {
         std::cout << "Successfully inserted account with ID: " << result.accountID << std::endl;
@@ -369,7 +411,14 @@ void test_insertAccount(dbController& db){
     } else {
         std::cerr << "Failed to insert account with ID: " << result.accountID << ". Error: " << result.errMsg << std::endl;
     }
-    result = db.insertAccount(1234, 1300);
+    result = db.insertAccount(1234, 1000000);
+    // Handle the result
+    if (result.errMsg == "") {
+        std::cout << "Successfully inserted account with ID: " << result.accountID << std::endl;
+    } else {
+        std::cerr << "Failed to insert account with ID: " << result.accountID << ". Error: " << result.errMsg << std::endl;
+    }
+    result = db.insertAccount(12345, 1000000);
     // Handle the result
     if (result.errMsg == "") {
         std::cout << "Successfully inserted account with ID: " << result.accountID << std::endl;
@@ -410,6 +459,24 @@ void test_insertSymbol(dbController& db){
     } else {
         std::cerr << sResult.errMsg << endl;
     }
+    sResult = db.insertSymbol("GOOGL", 1234, 125);
+    if(sResult.errMsg == ""){
+        cout << "Successfully inserted symbol with ID: " << sResult.accountID << " and symbol: " << sResult.symbol << endl;
+    } else {
+        std::cerr << sResult.errMsg << endl;
+    }
+    sResult = db.insertSymbol("GOOGL", 123, 150);
+    if(sResult.errMsg == ""){
+        cout << "Successfully inserted symbol with ID: " << sResult.accountID << " and symbol: " << sResult.symbol << endl;
+    } else {
+        std::cerr << sResult.errMsg << endl;
+    }
+    sResult = db.insertSymbol("GOOGL", 12345, 300);
+    if(sResult.errMsg == ""){
+        cout << "Successfully inserted symbol with ID: " << sResult.accountID << " and symbol: " << sResult.symbol << endl;
+    } else {
+        std::cerr << sResult.errMsg << endl;
+    }
 }
 
 void test_insertOpened(dbController& db){
@@ -432,13 +499,19 @@ void test_insertOpened(dbController& db){
     } else {
         cerr << result.errMsg << endl;
     }
-    result = db.insertOpened(1234,"GOOGL",-100,100);
+    result = db.insertOpened(1234,"GOOGL",-100,80);
     if(result.errMsg == ""){
         cout << "transid: " << result.transID << endl;
     } else {
         cerr << result.errMsg << endl;
     }
-    result = db.insertOpened(1234,"GOOGL",-75,100);
+    result = db.insertOpened(1234,"GOOGL",-75,10);
+    if(result.errMsg == ""){
+        cout << "transid: " << result.transID << endl;
+    } else {
+        cerr << result.errMsg << endl;
+    }
+    result = db.insertOpened(12345,"GOOGL",-300,90);
     if(result.errMsg == ""){
         cout << "transid: " << result.transID << endl;
     } else {
@@ -467,12 +540,28 @@ void test_queryShares(dbController& db){
     result = db.queryShares(1);
     if(result.errMsg == ""){
         cout << "opened: " << result.openedShares << " canceled: " << result.canceledShares << " at: " << result.cancelTime << endl;
+        vector<tuple<float, float, time_t>> executedShares = result.executedShares;
+        cout << "Executed: " << endl;
+        for (const auto& share : executedShares) {
+            float shares = get<0>(share);
+            float price = get<1>(share);
+            time_t time = get<2>(share);
+            cout << "Shares: " << shares << ", Price: " << price << ", Time: " << ctime(&time) << endl;
+        }
     } else {
         cerr << result.errMsg;
     }
     result = db.queryShares(2);
     if(result.errMsg == ""){
         cout << "opened: " << result.openedShares << " canceled: " << result.canceledShares << " at: " << result.cancelTime << endl;
+        vector<tuple<float, float, time_t>> executedShares = result.executedShares;
+        cout << "Executed: " << endl;
+        for (const auto& share : executedShares) {
+            float shares = get<0>(share);
+            float price = get<1>(share);
+            time_t time = get<2>(share);
+            cout << "Shares: " << shares << ", Price: " << price << ", Time: " << ctime(&time) << endl;
+        }
     } else {
         cerr << result.errMsg;
     }
