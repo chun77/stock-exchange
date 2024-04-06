@@ -1,0 +1,7 @@
+<transactions id="1">
+    <order sym="apple" amount="20" limit="10"/>
+    <order sym="applea" amount="20" limit="10"/>
+    <order sym="apple" amount="50" limit="1000"/>
+    <query id="1"/>
+    <cancel id="1"/>
+</transactions>
