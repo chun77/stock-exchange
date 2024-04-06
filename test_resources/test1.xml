@@ -1,0 +1,11 @@
+<create>
+    <account id="1" balance="500"/>
+    <account id="2" balance="2000"/>
+    <symbol sym="apple">
+        <account id="1">5</account>
+        <account id="2">15</account>
+    </symbol>
+    <symbol sym="banana">
+        <account id="2">20</account>
+    </symbol>
+</create>
