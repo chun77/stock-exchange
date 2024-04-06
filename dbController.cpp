@@ -3,10 +3,10 @@
 createAccountResult dbController::insertAccount(int accountID, float balance){
     createAccountResult result;
     result.accountID = accountID;
+    result.errMsg = "";
     while(true){
         try {
-            pqxx::work txn(con);
-            txn.exec("BEGIN ISOLATION LEVEL SERIALIZABLE");
+            transaction<serializable> txn(con);
             txn.exec("INSERT INTO Account (accountID, balance) VALUES (" + std::to_string(accountID) + ", " + std::to_string(balance) + ")");
             txn.commit();
             break;
@@ -22,24 +22,28 @@ createSymResult dbController::insertSymbol(string symbol, int accountID, float N
     createSymResult result;
     result.accountID = accountID;
     result.symbol = symbol;
-    try{
-        // Check if accountID exists in Account table
-        transaction<serializable> txn(con);
-        pqxx::result res = txn.exec("SELECT COUNT(*) FROM Account WHERE accountID = " + txn.quote(accountID));
-        int count = res[0][0].as<int>();
-        if (count == 0) {
-            result.errMsg = "This accountID doesn't exist";
-            return result;
+    result.errMsg = "";
+    while(true){
+        try{
+            transaction<serializable> txn(con);
+            pqxx::result res = txn.exec("SELECT COUNT(*) FROM Account WHERE accountID = " + txn.quote(accountID));
+            int count = res[0][0].as<int>();
+            if (count == 0) {
+                result.errMsg = "This accountID doesn't exist";
+                return result;
+            }
+            // Insert new entry
+            txn.exec("INSERT INTO Position (symbol, accountID, NUM) VALUES (" 
+            + txn.quote(symbol) + ", " + txn.quote(accountID) + ", " + txn.quote(NUM) + ") "
+            + "ON CONFLICT (symbol, accountID) DO UPDATE SET NUM = Position.NUM + " + txn.quote(NUM)
+            + " WHERE Position.symbol = " + txn.quote(symbol) + " AND Position.accountID = " + txn.quote(accountID));
+            txn.commit();
+            break;
+        } catch (const exception& e) {
+            continue;
         }
-        // Insert new entry
-        txn.exec("INSERT INTO Position (symbol, accountID, NUM) VALUES (" 
-        + txn.quote(symbol) + ", " + txn.quote(accountID) + ", " + txn.quote(NUM) + ") "
-        + "ON CONFLICT (symbol, accountID) DO UPDATE SET NUM = Position.NUM + " + txn.quote(NUM)
-        + " WHERE Position.symbol = " + txn.quote(symbol) + " AND Position.accountID = " + txn.quote(accountID));
-        txn.commit();
-    } catch (const exception& e) {
-        result.errMsg = e.what();
     }
+    
     return result;
 }
 
@@ -48,58 +52,62 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
     result.symbol = symbol;
     result.limit = limit;
     result.amount = amt;
-    try {
-        transaction<serializable> txn(con);
-        // Check if accountID exists in Account table
-        pqxx::result res = txn.exec("SELECT COUNT(*) FROM Account WHERE accountID = " + txn.quote(accountID));
-        int count = res[0][0].as<int>();
-        if (count == 0) {
-            result.errMsg = "This accountID doesn't exist";
-            return result;
-        }
-        pqxx::result transIDRes;
-        if (amt > 0) {
-            // Buying operation
-            float requiredBalance = amt * limit;
-            res = txn.exec("SELECT balance FROM Account WHERE accountID = " + txn.quote(accountID) + "FOR UPDATE");
-            float balance = res[0]["balance"].as<float>();
-            if (balance < requiredBalance) {
-                result.errMsg = "Insufficient balance";
+    result.errMsg = "";
+    while(true){
+        try {
+            transaction<serializable> txn(con);
+            pqxx::result res = txn.exec("SELECT COUNT(*) FROM Account WHERE accountID = " + txn.quote(accountID));
+            int count = res[0][0].as<int>();
+            if (count == 0) {
+                result.errMsg = "This accountID doesn't exist";
                 return result;
             }
-            // Deduct from balance
-            float newBalance = balance - requiredBalance;
-            txn.exec("UPDATE Account SET balance = " + txn.quote(newBalance) + " WHERE accountID = " + txn.quote(accountID));
-            // Insert into OpenedOrder table
-            transIDRes = txn.exec("INSERT INTO OpenedOrder (accountID, symbol, amt, price_limit, time) VALUES (" + txn.quote(accountID) + ", " + txn.quote(symbol) + ", " + txn.quote(amt) + ", " + txn.quote(limit) + ", " + txn.quote(time(NULL)) + ") RETURNING transID");
-        } else {
-            // Selling operation
-            res = txn.exec("SELECT NUM FROM Position WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol) + "FOR UPDATE");
-            if (res.size() == 0) {
-                result.errMsg = "No position found for the symbol";
-                return result;
+            pqxx::result transIDRes;
+            if (amt > 0) {
+                // Buying operation
+                float requiredBalance = amt * limit;
+                res = txn.exec("SELECT balance FROM Account WHERE accountID = " + txn.quote(accountID) + "FOR UPDATE");
+                float balance = res[0]["balance"].as<float>();
+                if (balance < requiredBalance) {
+                    result.errMsg = "Insufficient balance";
+                    return result;
+                }
+                // Deduct from balance
+                float newBalance = balance - requiredBalance;
+                txn.exec("UPDATE Account SET balance = " + txn.quote(newBalance) + " WHERE accountID = " + txn.quote(accountID));
+                // Insert into OpenedOrder table
+                transIDRes = txn.exec("INSERT INTO OpenedOrder (accountID, symbol, amt, price_limit, time) VALUES (" + txn.quote(accountID) + ", " + txn.quote(symbol) + ", " + txn.quote(amt) + ", " + txn.quote(limit) + ", " + txn.quote(time(NULL)) + ") RETURNING transID");
+            } else {
+                // Selling operation
+                res = txn.exec("SELECT NUM FROM Position WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol) + "FOR UPDATE");
+                if (res.size() == 0) {
+                    result.errMsg = "No position found for the symbol";
+                    return result;
+                }
+                float currentNUM = res[0]["NUM"].as<float>();
+                if (currentNUM < std::abs(amt)) {
+                    result.errMsg = "Insufficient shares";
+                    return result;
+                }
+                // Deduct shares from position
+                float newNUM = currentNUM - std::abs(amt);
+                txn.exec("UPDATE Position SET NUM = " + txn.quote(newNUM) + " WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol));
+                // Insert into OpenedOrder table
+                transIDRes = txn.exec("INSERT INTO OpenedOrder (accountID, symbol, amt, price_limit, time) VALUES (" + txn.quote(accountID) + ", " + txn.quote(symbol) + ", " + txn.quote(amt) + ", " + txn.quote(limit) + ", " + txn.quote(time(NULL)) + ") RETURNING transID");
             }
-            float currentNUM = res[0]["NUM"].as<float>();
-            if (currentNUM < std::abs(amt)) {
-                result.errMsg = "Insufficient shares";
-                return result;
-            }
-            // Deduct shares from position
-            float newNUM = currentNUM - std::abs(amt);
-            txn.exec("UPDATE Position SET NUM = " + txn.quote(newNUM) + " WHERE accountID = " + txn.quote(accountID) + " AND symbol = " + txn.quote(symbol));
-            // Insert into OpenedOrder table
-            transIDRes = txn.exec("INSERT INTO OpenedOrder (accountID, symbol, amt, price_limit, time) VALUES (" + txn.quote(accountID) + ", " + txn.quote(symbol) + ", " + txn.quote(amt) + ", " + txn.quote(limit) + ", " + txn.quote(time(NULL)) + ") RETURNING transID");
-        }
 
-        // match orders
-        matchOrders(txn, accountID, transIDRes[0][0].as<int>(), symbol, amt, limit);
-        // Commit transaction
-        txn.commit();
-        // Set result transID
-        result.transID = transIDRes[0][0].as<int>();
-    } catch (const std::exception& e) {
-        result.errMsg = e.what();
+            // match orders
+            matchOrders(txn, accountID, transIDRes[0][0].as<int>(), symbol, amt, limit);
+            // Commit transaction
+            txn.commit();
+            // Set result transID
+            result.transID = transIDRes[0][0].as<int>();
+            break;
+        } catch (const exception& e) {
+            continue;
+        }
     }
+    
     return result;
 }
 
@@ -165,7 +173,6 @@ void dbController::matchOrders(transaction<serializable>& txn, int accountID, in
             } else {return;}
             // 如果没有order可以match了就直接退出
         } catch (const exception& e) {
-            // 错误处理
             throw;
         }
     }
@@ -201,6 +208,7 @@ void dbController::updateOpened(transaction<serializable>& txn, int transID, flo
             txn.exec(updateSql);
         }
     } else {
+        // TODO: error handling
         std::cout << "No record found with transID: " << transID << std::endl;
     }
 }
@@ -219,36 +227,43 @@ void dbController::updateExecuted(transaction<serializable>& txn, int transID, i
 transCancelResult dbController::insertCanceled(int transID){
     transCancelResult result;
     result.transID = transID;
-    try {
-        // Check if transID exists in OpenedOrder table
-        transaction<serializable> txn(con);
-        pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + "FOR UPDATE");
-        if (res.empty()) {
-            result.errMsg = "No transaction found with transID: " + std::to_string(transID) + "\n";
-            return result;
+    result.canceledShares = 0;
+    result.errMsg = "";
+    result.executedShares = {};
+    while(true){
+        try {
+            transaction<serializable> txn(con);
+            pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + "FOR UPDATE");
+            if (res.empty()) {
+                result.errMsg = "No transaction found with transID: " + std::to_string(transID) + "\n";
+                return result;
+            }
+            // Get details of the transaction
+            float canceledShares;
+            time_t cancelTime = time(NULL);
+            canceledShares = res[0]["amt"].as<float>();
+            // Insert into CanceledOrder table
+            txn.exec("INSERT INTO CanceledOrder (transID, accountID, symbol, amt, time) SELECT transID, accountID, symbol, amt, " + txn.quote(cancelTime) + " FROM OpenedOrder WHERE transID = " + txn.quote(transID));
+            // Delete from OpenedOrder table
+            txn.exec("DELETE FROM OpenedOrder WHERE transID = " + txn.quote(transID));
+            result.canceledShares = canceledShares;
+            result.cancelTime = cancelTime;
+            pqxx::result executedRes = txn.exec(
+                "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
+            );
+            if(!executedRes.empty()){
+                for (const auto& row : executedRes) {
+                    float amt = row["amt"].as<float>();
+                    float price = row["price"].as<float>();
+                    time_t t = row["time"].as<time_t>();
+                    result.executedShares.push_back(std::make_tuple(amt, price, t));
+                }
+            }
+            txn.commit();
+            break;
+        } catch (const std::exception& e) {
+            continue;
         }
-        // Get details of the transaction
-        float canceledShares;
-        time_t cancelTime = time(nullptr);
-        canceledShares = res[0]["amt"].as<float>();
-        // Insert into CanceledOrder table
-        txn.exec("INSERT INTO CanceledOrder (transID, accountID, symbol, amt, time) SELECT transID, accountID, symbol, amt, " + txn.quote(cancelTime) + " FROM OpenedOrder WHERE transID = " + txn.quote(transID));
-        // Delete from OpenedOrder table
-        txn.exec("DELETE FROM OpenedOrder WHERE transID = " + txn.quote(transID));
-        result.canceledShares = canceledShares;
-        result.cancelTime = cancelTime;
-        pqxx::result executedRes = txn.exec(
-            "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
-        );
-        for (const auto& row : executedRes) {
-            float amt = row["amt"].as<float>();
-            float price = row["price"].as<float>();
-            time_t t = row["time"].as<time_t>();
-            result.executedShares.push_back(std::make_tuple(amt, price, t));
-        }
-        txn.commit();
-    } catch (const std::exception& e) {
-        result.errMsg = e.what();
     }
     return result;
 }
@@ -260,40 +275,43 @@ transQueryResult dbController::queryShares(int transID){
     result.canceledShares = 0;
     result.executedShares = {};
     result.errMsg = "";
-    result.cancelTime = time(NULL);
-    try {
-        transaction<serializable> txn(con, "repeatable read");
-        pqxx::result openedRes = txn.exec(
-            "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
-        );
-        pqxx::result canceledRes = txn.exec(
-            "SELECT amt, time FROM CanceledOrder WHERE transID = " + txn.quote(transID)
-        );
-        pqxx::result executedRes = txn.exec(
-            "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
-        );
-        if(openedRes.empty() && canceledRes.empty() && executedRes.empty()){
-            result.errMsg = "Invalid trans_ID\n";
-            return result;
-        }
-        if (!openedRes.empty()) {
-            result.openedShares = openedRes[0]["amt"].as<float>();
-        }
-        if (!canceledRes.empty()) {
-            result.canceledShares = canceledRes[0]["amt"].as<float>();
-            result.cancelTime = canceledRes[0]["time"].as<time_t>();
-        }
-        if (!executedRes.empty()){
-            for (const auto& row : executedRes) {
-                float amt = row["amt"].as<float>();
-                float price = row["price"].as<float>();
-                time_t t = row["time"].as<time_t>();
-                result.executedShares.push_back(std::make_tuple(amt, price, t));
+    while(true){
+        try {
+            transaction<serializable> txn(con, "repeatable read");
+            pqxx::result openedRes = txn.exec(
+                "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
+            );
+            pqxx::result canceledRes = txn.exec(
+                "SELECT amt, time FROM CanceledOrder WHERE transID = " + txn.quote(transID)
+            );
+            pqxx::result executedRes = txn.exec(
+                "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
+            );
+            if(openedRes.empty() && canceledRes.empty() && executedRes.empty()){
+                result.errMsg = "Invalid trans_ID\n";
+                return result;
             }
+            if (!openedRes.empty()) {
+                result.openedShares = openedRes[0]["amt"].as<float>();
+            }
+            if (!canceledRes.empty()) {
+                result.canceledShares = canceledRes[0]["amt"].as<float>();
+                result.cancelTime = canceledRes[0]["time"].as<time_t>();
+            }
+            if (!executedRes.empty()){
+                for (const auto& row : executedRes) {
+                    float amt = row["amt"].as<float>();
+                    float price = row["price"].as<float>();
+                    time_t t = row["time"].as<time_t>();
+                    result.executedShares.push_back(std::make_tuple(amt, price, t));
+                }
+            }
+            txn.commit();
+            break;
+        } catch (const std::exception& e) {
+            std::cerr << "Error querying shares: " << e.what() << std::endl;
+            continue;
         }
-        txn.commit();
-    } catch (const std::exception& e) {
-        std::cerr << "Error querying shares: " << e.what() << std::endl;
     }
     return result;
 }

@@ -87,82 +87,60 @@ string server::recvMessage(int client_socket_fd) {
     return xml_message;
 }
 
-
-int main() {
-    server my_server;
-    my_server.setupServer();
-
-    cout << "Server setup complete. Waiting for connections..." << endl;
+void server::handleRequest(const string& xmlMsg){
     dbController dbCtrler("exchange", "postgres", "passw0rd", "localhost", "5432");
-    dbCtrler.initializeAccount();
-    dbCtrler.initializePosition();
-    dbCtrler.initializeOpened();
-    dbCtrler.initializeCanceled();
-    dbCtrler.initializeExecuted();
-
-    unsigned int client_socket_fd = my_server.acceptConnection();
-    cout << "Connection accepted. Receiving message..." << endl;
-
-    while (true) {
-        string xml_message = my_server.recvMessage(client_socket_fd);
-        cout << "Received message from client: " << xml_message << endl;
-
-        xmlSeqParser parser;
-        xmlSeqGenerator generator("results");
-        int result = parser.parse(xml_message.c_str());
-        if(result == 0){
-            while ((result = parser.getNextCreate()) != -1){
-                if(result == 0){
-                    pair<int, float> accountInfo = parser.getAccountInfo();
-                    createAccountResult car = dbCtrler.insertAccount(accountInfo.first, accountInfo.second);
-                    if(car.errMsg == ""){
-                        generator.addElement(car.accountID);
-                    }else{
-                        generator.addElement(car.accountID, car.errMsg);
-                    }
-                } else if (result == 1){
-                    map<string, PairVec> symbolInfo = parser.getSymbolInfo();
-                    string symbol = symbolInfo.begin()->first;
-                    PairVec actAndNum = symbolInfo.begin()->second;
-                    for(const auto& pair: actAndNum){
-                        createSymResult csr = dbCtrler.insertSymbol(symbol, pair.first, pair.second);
-                        if(csr.errMsg == ""){
-                            generator.addElement(csr.symbol, csr.accountID);
-                        } else {
-                            generator.addElement(csr.symbol, csr.accountID, csr.errMsg);
-                        }
-                    }
+    xmlSeqParser parser;
+    xmlSeqGenerator generator("results");
+    int result = parser.parse(xmlMsg.c_str());
+    if(result == 0){
+        while ((result = parser.getNextCreate()) != -1){
+            if(result == 0){
+                pair<int, float> accountInfo = parser.getAccountInfo();
+                createAccountResult car = dbCtrler.insertAccount(accountInfo.first, accountInfo.second);
+                if(car.errMsg == ""){
+                    generator.addElement(car.accountID);
+                }else{
+                    generator.addElement(car.accountID, car.errMsg);
                 }
-            }
-        } else if(result == 1){
-            while((result = parser.getNextTrans()) != -1){
-                if(result == 0){
-                    int accountID = parser.getAccountIdForTrans();
-                    tuple<string, float, float> orderInfo = parser.getOrderInfo();
-                    transOrderResult tor = dbCtrler.insertOpened(accountID, get<0>(orderInfo), get<1>(orderInfo), get<2>(orderInfo));
-                    if(tor.errMsg == ""){
-                        generator.addElement(tor.symbol, tor.amount, tor.limit, tor.transID);
+            } else if (result == 1){
+                map<string, PairVec> symbolInfo = parser.getSymbolInfo();
+                string symbol = symbolInfo.begin()->first;
+                PairVec actAndNum = symbolInfo.begin()->second;
+                for(const auto& pair: actAndNum){
+                    createSymResult csr = dbCtrler.insertSymbol(symbol, pair.first, pair.second);
+                    if(csr.errMsg == ""){
+                        generator.addElement(csr.symbol, csr.accountID);
                     } else {
-                        generator.addElement(tor.symbol, tor.amount, tor.limit, tor.errMsg);
+                        generator.addElement(csr.symbol, csr.accountID, csr.errMsg);
                     }
-                } else if (result == 1){
-                    int queryID = parser.getQueryID();
-                    transQueryResult tqr = dbCtrler.queryShares(queryID);
-                    // TODO error handling
-                    generator.addElement(tqr.transID, tqr.openedShares, tqr.canceledShares, tqr.cancelTime, tqr.executedShares);
-                } else if (result == 2){
-                    int cancelID = parser.getCancelID();
-                    transCancelResult tcr = dbCtrler.insertCanceled(cancelID);
-                    // TODO error handling
-                    generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
                 }
             }
         }
-
-        string xmlResponse = generator.getXML();
-        cout << xmlResponse << endl;
-        //cout << "Connection closed." << endl;
+    } else if(result == 1){
+        while((result = parser.getNextTrans()) != -1){
+            if(result == 0){
+                int accountID = parser.getAccountIdForTrans();
+                tuple<string, float, float> orderInfo = parser.getOrderInfo();
+                transOrderResult tor = dbCtrler.insertOpened(accountID, get<0>(orderInfo), get<1>(orderInfo), get<2>(orderInfo));
+                if(tor.errMsg == ""){
+                    generator.addElement(tor.symbol, tor.amount, tor.limit, tor.transID);
+                } else {
+                    generator.addElement(tor.symbol, tor.amount, tor.limit, tor.errMsg);
+                }
+            } else if (result == 1){
+                int queryID = parser.getQueryID();
+                transQueryResult tqr = dbCtrler.queryShares(queryID);
+                // TODO error handling
+                generator.addElement(tqr.transID, tqr.openedShares, tqr.canceledShares, tqr.cancelTime, tqr.executedShares);
+            } else if (result == 2){
+                int cancelID = parser.getCancelID();
+                transCancelResult tcr = dbCtrler.insertCanceled(cancelID);
+                // TODO error handling
+                generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
+            }
+        }
     }
 
-    return 0;
+    string xmlResponse = generator.getXML();
+    cout << xmlResponse << endl;
 }
