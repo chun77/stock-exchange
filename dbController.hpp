@@ -61,6 +61,9 @@ public:
     createAccountResult insertAccount(int accountID, float balance);
     createSymResult insertSymbol(string symbol, int accountID, float NUM);
     transOrderResult insertOpened(int accountID, string symbol, float amt, float limit);
+    void matchOrders(transaction<serializable>& txn, int accountID, int newTransID, const string &symbol, float amt, float limit);
+    void updateBuyerPosition(transaction<serializable>& txn, int accountID, const string &symbol, float amt);
+    void updateSellerAccount(transaction<serializable>& txn, int accountID, float amount);
     transCancelResult insertCanceled(int transID);
 
     transQueryResult queryShares(int transID);
