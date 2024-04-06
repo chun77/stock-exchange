@@ -39,29 +39,31 @@ string readFileContents(const string& filename) {
 
 int main() {
     // Directory where XML files are located
-    string directory = "/home/zw297/project4/erss-hwk4-hg161-zw297/test_resources";
+    string directory = "test_resources";
     vector<string> files = getXmlFiles(directory);
 
-    int client_socket_fd;
-    struct sockaddr_in server_addr;
+    
 
-    client_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_socket_fd == -1) {
-        cerr << "Error: cannot create socket" << endl;
-        return 1;
-    }
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(12345); 
-    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
-
-    if (connect(client_socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        cerr << "Error: cannot connect to server" << endl;
-        close(client_socket_fd);
-        return 1;
-    }
+    
 
     for (const string& file : files) {
+        int client_socket_fd;
+        struct sockaddr_in server_addr;
+
+        client_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (client_socket_fd == -1) {
+            cerr << "Error: cannot create socket" << endl;
+            return 1;
+        }
+
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(12345); 
+        inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+        if (connect(client_socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+            cerr << "Error: cannot connect to server" << endl;
+            close(client_socket_fd);
+            return 1;
+        }
         printf("Sending file: %s\n", file.c_str());
         string message = readFileContents(file);
         int bytes_sent = send(client_socket_fd, message.c_str(), message.length(), 0);
@@ -70,9 +72,9 @@ int main() {
             continue;
         }
         cout << "Message sent to server from file: " << file << endl;
+        close(client_socket_fd);
     }
 
-    close(client_socket_fd);
-
+    
     return 0;
 }
