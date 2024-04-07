@@ -7,12 +7,16 @@ createAccountResult dbController::insertAccount(int accountID, float balance){
     while(true){
         try {
             transaction<serializable> txn(con);
+            pqxx::result queryResult = txn.exec("SELECT accountID FROM Account WHERE accountID = " + std::to_string(accountID));
+            if (!queryResult.empty()) {
+                result.errMsg = "Account with ID " + std::to_string(accountID) + " already exists.";
+                return result;
+            }
             txn.exec("INSERT INTO Account (accountID, balance) VALUES (" + std::to_string(accountID) + ", " + std::to_string(balance) + ")");
             txn.commit();
             break;
         } catch (const exception& e) {
-            result.errMsg = e.what();
-            break;
+            continue;
         }
     }
     return result;
