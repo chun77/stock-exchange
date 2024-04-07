@@ -23,7 +23,7 @@ int main() {
         string xml_message = my_server.recvMessage(client_socket_fd);
         cout << "Received message from client: " << xml_message << endl;
 
-        thread request_thread(&server::handleRequest, my_server, xml_message); 
+        thread request_thread(&server::handleRequest, my_server, xml_message, client_socket_fd); 
         request_thread.join();
         //request_thread.detach(); 
     }

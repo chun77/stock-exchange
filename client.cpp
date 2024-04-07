@@ -37,14 +37,35 @@ string readFileContents(const string& filename) {
     return string((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
 }
 
+string recvMessage(int client_socket_fd) {
+    const int BUFFER_SIZE = 4096;
+    char buffer[BUFFER_SIZE];
+
+    int bytes_received = recv(client_socket_fd, buffer, BUFFER_SIZE, 0);
+    if (bytes_received == -1) {
+        cerr << "Error: cannot receive message from client" << endl;
+        exit(-1);
+    }
+
+    string message(buffer, bytes_received);
+
+    size_t newline_pos = message.find('\n');
+    if (newline_pos == string::npos) {
+        cerr << "Error: invalid message format from client" << endl;
+        exit(-1);
+    }
+    string length_str = message.substr(0, newline_pos);
+    unsigned int length = stoi(length_str);
+
+    string xml_message = message.substr(newline_pos + 1, length);
+
+    return xml_message;
+}
+
 int main() {
     // Directory where XML files are located
     string directory = "test_resources";
     vector<string> files = getXmlFiles(directory);
-
-    
-
-    
 
     for (const string& file : files) {
         int client_socket_fd;
@@ -72,6 +93,9 @@ int main() {
             continue;
         }
         cout << "Message sent to server from file: " << file << endl;
+
+        string xmlResponse = recvMessage(client_socket_fd);
+        cout << xmlResponse;
         close(client_socket_fd);
     }
 

@@ -87,7 +87,15 @@ string server::recvMessage(int client_socket_fd) {
     return xml_message;
 }
 
-void server::handleRequest(const string& xmlMsg){
+void server::sendMessage(int client_socket_fd, const string& message){
+    int bytes_sent = send(client_socket_fd, message.c_str(), message.size(), 0);
+    if (bytes_sent == -1) {
+        cerr << "Error: cannot send message to client" << endl;
+        return;
+    }
+}
+
+void server::handleRequest(const string& xmlMsg, int client_socket_fd){
     dbController dbCtrler("exchange", "postgres", "passw0rd", "localhost", "5432");
     xmlSeqParser parser;
     xmlSeqGenerator generator("results");
@@ -146,4 +154,5 @@ void server::handleRequest(const string& xmlMsg){
 
     string xmlResponse = generator.getXML();
     cout << xmlResponse << endl;
+    sendMessage(client_socket_fd, xmlResponse);
 }

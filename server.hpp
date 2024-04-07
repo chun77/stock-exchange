@@ -22,7 +22,8 @@ public:
     void setupServer();
     unsigned int acceptConnection();
     std::string recvMessage(int client_socket_fd);
-    void handleRequest(const string& xmlMsg);
+    void sendMessage(int client_socket_fd, const string& message);
+    void handleRequest(const string& xmlMsg, int client_socket_fd);
 };
 
 #endif
