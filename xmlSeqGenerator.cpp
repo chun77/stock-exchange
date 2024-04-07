@@ -103,6 +103,15 @@ int xmlSeqGenerator::addElement(int transID, float oShares, float cShares, time_
     return 0;
 }
 
+int xmlSeqGenerator::addElement(int transID, float oShares, float cShares, time_t cTime, executedShares xShares, string errMsg){
+    XMLElement* errorElement = doc.NewElement("error");
+    errorElement->SetAttribute("id", transID);
+    errorElement->SetText(errMsg.c_str());
+    XMLElement* root = doc.RootElement();
+    root->InsertEndChild(errorElement);
+    return 0;
+}
+
 int xmlSeqGenerator::addElement(int transID, float cShares, time_t cTime, executedShares xShares){
     XMLElement* cancelElement = doc.NewElement("canceled");
     cancelElement->SetAttribute("id", transID);

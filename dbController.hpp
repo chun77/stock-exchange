@@ -66,8 +66,8 @@ public:
     void updateSellerAccount(transaction<serializable>& txn, int accountID, float amount);
     void updateOpened(transaction<serializable>& txn, int transID, float amt);
     void updateExecuted(transaction<serializable>& txn, int transID, int accountID, const string& symbol, float price, float amt);
-    transCancelResult insertCanceled(int transID);
-    transQueryResult queryShares(int transID);
+    transCancelResult insertCanceled(int accountID, int transID);
+    transQueryResult queryShares(int accountID, int transID);
 
 
 };

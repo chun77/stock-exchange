@@ -136,13 +136,18 @@ void server::handleRequest(const string& xmlMsg, int client_socket_fd){
                     generator.addElement(tor.symbol, tor.amount, tor.limit, tor.errMsg);
                 }
             } else if (result == 1){
+                int accountID = parser.getAccountIdForTrans();
                 int queryID = parser.getQueryID();
-                transQueryResult tqr = dbCtrler.queryShares(queryID);
-                // TODO error handling
-                generator.addElement(tqr.transID, tqr.openedShares, tqr.canceledShares, tqr.cancelTime, tqr.executedShares);
+                transQueryResult tqr = dbCtrler.queryShares(accountID, queryID);
+                if(tqr.errMsg == ""){
+                    generator.addElement(tqr.transID, tqr.openedShares, tqr.canceledShares, tqr.cancelTime, tqr.executedShares);
+                } else {
+                    generator.addElement(tqr.transID, tqr.openedShares, tqr.canceledShares, tqr.cancelTime, tqr.executedShares, tqr.errMsg);
+                }
             } else if (result == 2){
+                int accountID = parser.getAccountIdForTrans();
                 int cancelID = parser.getCancelID();
-                transCancelResult tcr = dbCtrler.insertCanceled(cancelID);
+                transCancelResult tcr = dbCtrler.insertCanceled(accountID, cancelID);
                 if(tcr.errMsg == ""){
                     generator.addElement(tcr.transID, tcr.canceledShares, tcr.cancelTime, tcr.executedShares);
                 } else {

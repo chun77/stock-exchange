@@ -24,8 +24,8 @@ int main() {
         cout << "Received message from client: " << xml_message << endl;
 
         thread request_thread(&server::handleRequest, my_server, xml_message, client_socket_fd); 
-        request_thread.join();
-        //request_thread.detach(); 
+        //request_thread.join();
+        request_thread.detach(); 
     }
     return 0;
 }

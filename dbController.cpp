@@ -228,7 +228,7 @@ void dbController::updateExecuted(transaction<serializable>& txn, int transID, i
     txn.exec(insertSql);
 }
 
-transCancelResult dbController::insertCanceled(int transID){
+transCancelResult dbController::insertCanceled(int accountID, int transID){
     transCancelResult result;
     result.transID = transID;
     result.canceledShares = 0;
@@ -237,9 +237,14 @@ transCancelResult dbController::insertCanceled(int transID){
     while(true){
         try {
             transaction<serializable> txn(con);
+            pqxx::result accountResult = txn.exec("SELECT accountID FROM Account WHERE accountID = " + std::to_string(accountID));
+            if (accountResult.empty()) {
+                result.errMsg = "This accountID doesn't exist";
+                return result;
+            }
             pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + "FOR UPDATE");
             if (res.empty()) {
-                result.errMsg = "No transaction found with transID: " + std::to_string(transID) + "\n";
+                result.errMsg = "No transaction found with transID: " + std::to_string(transID);
                 return result;
             }
             // Get details of the transaction
@@ -272,7 +277,7 @@ transCancelResult dbController::insertCanceled(int transID){
     return result;
 }
 
-transQueryResult dbController::queryShares(int transID){
+transQueryResult dbController::queryShares(int accountID, int transID){
     transQueryResult result;
     result.transID = transID;
     result.openedShares = 0;
@@ -281,7 +286,12 @@ transQueryResult dbController::queryShares(int transID){
     result.errMsg = "";
     while(true){
         try {
-            transaction<serializable> txn(con, "repeatable read");
+            transaction<serializable> txn(con);
+            pqxx::result accountResult = txn.exec("SELECT accountID FROM Account WHERE accountID = " + std::to_string(accountID));
+            if (accountResult.empty()) {
+                result.errMsg = "This accountID doesn't exist";
+                return result;
+            }
             pqxx::result openedRes = txn.exec(
                 "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
             );
@@ -418,6 +428,7 @@ void dbController::initializeExecuted(){
     }
 }
 
+/*
 void test_insertAccount(dbController& db){
     createAccountResult result = db.insertAccount(123, 1000000);
     // Handle the result
@@ -595,8 +606,7 @@ void test_queryShares(dbController& db){
     }
 }
 
-
-/*int main(){
+int main(){
     // Create an instance of dbController
     dbController db("exchange", "postgres", "passw0rd", "localhost", "5432");
     // Initialize the database (create tables if necessary)
