@@ -155,6 +155,7 @@ void dbController::matchOrders(transaction<serializable>& txn, int accountID, in
 
                 if (amt > 0) {
                     updateBuyerPosition(txn, accountID, symbol, tradeAmt);
+                    updateBuyerAccount(txn, accountID, (limit - executionPrice) * tradeAmt);
                     updateSellerAccount(txn, matchAccountID, executionPrice * tradeAmt);
                     updateOpened(txn, newTransID, tradeAmt);
                     updateOpened(txn, matchTransID, -tradeAmt);
@@ -193,6 +194,10 @@ void dbController::updateBuyerPosition(transaction<serializable>& txn, int accou
     }
 }
 
+void dbController::updateBuyerAccount(transaction<serializable>& txn, int accountID, float amount) {
+    txn.exec("UPDATE Account SET balance = balance + " + txn.quote(amount) + " WHERE accountID = " + txn.quote(accountID));
+}
+
 void dbController::updateSellerAccount(transaction<serializable>& txn, int accountID, float amount) {
     txn.exec("UPDATE Account SET balance = balance + " + txn.quote(amount) + " WHERE accountID = " + txn.quote(accountID));
 }
@@ -212,7 +217,6 @@ void dbController::updateOpened(transaction<serializable>& txn, int transID, flo
             txn.exec(updateSql);
         }
     } else {
-        // TODO: error handling
         std::cout << "No record found with transID: " << transID << std::endl;
     }
 }
@@ -242,7 +246,7 @@ transCancelResult dbController::insertCanceled(int accountID, int transID){
                 result.errMsg = "This accountID doesn't exist";
                 return result;
             }
-            pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + "FOR UPDATE");
+            pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID));
             if (res.empty()) {
                 result.errMsg = "No transaction found with transID: " + std::to_string(transID);
                 return result;
@@ -293,16 +297,16 @@ transQueryResult dbController::queryShares(int accountID, int transID){
                 return result;
             }
             pqxx::result openedRes = txn.exec(
-                "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
+                "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID)
             );
             pqxx::result canceledRes = txn.exec(
-                "SELECT amt, time FROM CanceledOrder WHERE transID = " + txn.quote(transID)
+                "SELECT amt, time FROM CanceledOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID)
             );
             pqxx::result executedRes = txn.exec(
-                "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
+                "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID)
             );
             if(openedRes.empty() && canceledRes.empty() && executedRes.empty()){
-                result.errMsg = "Invalid trans_ID\n";
+                result.errMsg = "Invalid trans_ID";
                 return result;
             }
             if (!openedRes.empty()) {

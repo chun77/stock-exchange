@@ -63,6 +63,7 @@ public:
     transOrderResult insertOpened(int accountID, string symbol, float amt, float limit);
     void matchOrders(transaction<serializable>& txn, int accountID, int newTransID, const string &symbol, float amt, float limit);
     void updateBuyerPosition(transaction<serializable>& txn, int accountID, const string &symbol, float amt);
+    void updateBuyerAccount(transaction<serializable>& txn, int accountID, float amount);
     void updateSellerAccount(transaction<serializable>& txn, int accountID, float amount);
     void updateOpened(transaction<serializable>& txn, int transID, float amt);
     void updateExecuted(transaction<serializable>& txn, int transID, int accountID, const string& symbol, float price, float amt);
