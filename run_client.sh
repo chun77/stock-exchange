@@ -1,16 +1,13 @@
 #!/bin/bash
 
-# concurrent client count
-CLIENT_COUNT=1
+# Number of times the client program should run
+RUN_COUNT=500
 
 # client executable
 CLIENT="./client"
 
-# start clients
-for ((i=0; i<$CLIENT_COUNT; i++))
+# Run the client program multiple times
+for ((i=0; i<$RUN_COUNT; i++))
 do
-   $CLIENT &
+    $CLIENT
 done
-
-# wait for all clients to finish
-wait
