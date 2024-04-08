@@ -96,7 +96,7 @@ void server::sendMessage(int client_socket_fd, const string& message){
 }
 
 void server::handleRequest(const string& xmlMsg, int client_socket_fd){
-    dbController dbCtrler("exchange", "postgres", "passw0rd", "localhost", "5432");
+    dbController dbCtrler("exchange", "postgres", "passw0rd", "db", "5432");
     xmlSeqParser parser;
     xmlSeqGenerator generator("results");
     int result = parser.parse(xmlMsg.c_str());

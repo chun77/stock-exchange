@@ -1,0 +1,20 @@
+version: '2'
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_DB: exchange
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: passw0rd
+
+  server:
+    build: src
+    command: bash -c "make && ./main"
+    ports:
+      - "127.0.0.1:12345:12345"
+    depends_on:
+      - db
+
+volumes:
+  db-data:

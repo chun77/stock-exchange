@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Number of times the client program should run
-RUN_COUNT=500
+RUN_COUNT=5
 
 # client executable
 CLIENT="./client"

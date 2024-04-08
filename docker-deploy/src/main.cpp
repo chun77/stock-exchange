@@ -10,7 +10,7 @@ int main() {
     server my_server;
     my_server.setupServer();
     cout << "Server setup complete. Waiting for connections..." << endl;
-    dbController dbCtrler("exchange", "postgres", "passw0rd", "localhost", "5432");
+    dbController dbCtrler("exchange", "postgres", "passw0rd", "db", "5432");
     dbCtrler.initializeAccount();
     dbCtrler.initializePosition();
     dbCtrler.initializeOpened();
