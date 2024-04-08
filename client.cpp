@@ -23,7 +23,15 @@ vector<string> getXmlFiles(const string& directory) {
         }
         closedir(dir);
     } else {
-        cerr << "Could not open directory" << endl;
+        perror("opendir"); // This will print why opendir failed
+        cerr << "Could not open directory: " << strerror(errno) << endl;
+
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        fprintf(stdout, "Current working dir: %s\n", cwd);
+        } else {
+        perror("getcwd");
+        }
     }
     return files;
 }
@@ -39,7 +47,7 @@ string readFileContents(const string& filename) {
 
 int main() {
     // Directory where XML files are located
-    string directory = "/home/zw297/project4/erss-hwk4-hg161-zw297/test_resources";
+    string directory = "test_resources";
     vector<string> files = getXmlFiles(directory);
 
     int client_socket_fd;

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # concurrent client count
-CLIENT_COUNT=10
+CLIENT_COUNT=1
 
 # client executable
 CLIENT="./client"
