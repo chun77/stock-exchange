@@ -117,7 +117,7 @@ transOrderResult dbController::insertOpened(int accountID, string symbol, float 
 
 void dbController::matchOrders(transaction<serializable>& txn, int accountID, int newTransID, const string& symbol, float amt, float limit) {
     float remainingAmt = amt;
-    while(remainingAmt != 0){ //只要还有剩余的amt没match就要尝试match
+    while(remainingAmt != 0){ 
         try {
             string priceMatchCondition;
             string sql;
@@ -176,7 +176,6 @@ void dbController::matchOrders(transaction<serializable>& txn, int accountID, in
                 }
                 
             } else {return;}
-            // 如果没有order可以match了就直接退出
         } catch (const exception& e) {
             throw;
         }
@@ -346,7 +345,7 @@ void dbController::initializeAccount() {
                  "balance FLOAT"
                  ")");
         txn.commit();
-        std::cout << "Account initialized successfully." << std::endl;
+        //std::cout << "Account initialized successfully." << std::endl;
     } catch (const exception& e) {
         std::cerr << "Error initializing account: " << e.what() << std::endl;
     }
@@ -364,7 +363,7 @@ void dbController::initializePosition() {
                     "PRIMARY KEY (symbol, accountID)"
                     ")");
         txn.commit();
-        std::cout << "Position initialized successfully." << std::endl;
+        //std::cout << "Position initialized successfully." << std::endl;
     } catch (const exception& e) {
         std::cerr << "Error initializing position: " << e.what() << std::endl;
     }
@@ -385,7 +384,7 @@ void dbController::initializeOpened(){
             ")"
         );
         txn.commit();
-        std::cout << "Opened initialized successfully." << std::endl;
+        //std::cout << "Opened initialized successfully." << std::endl;
     } catch (const exception& e) {
         std::cerr << "Error initializing opened: " << e.what() << std::endl;
     }
@@ -405,7 +404,7 @@ void dbController::initializeCanceled(){
             ")"
         );
         txn.commit();
-        cout << "Canceled table initialized successfully." << endl;
+        //cout << "Canceled table initialized successfully." << endl;
     } catch (const exception& e) {
         cerr << "Error initializing canceled: " << e.what() << endl;
     }
@@ -426,7 +425,7 @@ void dbController::initializeExecuted(){
             ")"
         );
         txn.commit();
-        cout << "Executed table initialized successfully." << endl;
+        //cout << "Executed table initialized successfully." << endl;
     } catch (const exception& e) {
         cerr << "Error initializing executed: " << e.what() << endl;
     }

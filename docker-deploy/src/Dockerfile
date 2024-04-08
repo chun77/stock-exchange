@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     libtinyxml2-dev \
     libpqxx-dev
 
-RUN make
+RUN touch dummy_file && make
 
 EXPOSE 12345
 

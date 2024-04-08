@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <algorithm>
 #include <dirent.h> // For directory operations
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -72,9 +73,9 @@ string recvMessage(int client_socket_fd) {
 
 int main() {
     // Directory where XML files are located
-    string directory = "test_resources";
+    string directory = "../test_resources";
     vector<string> files = getXmlFiles(directory);
-
+    sort(files.begin(), files.end());
     for (const string& file : files) {
         int client_socket_fd;
         struct sockaddr_in server_addr;

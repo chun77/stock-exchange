@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Number of clients to run simultaneously
-CLIENT_COUNT=30
+CLIENT_COUNT=10
 
 # Path to the first script
 SCRIPT="./run_client.sh"

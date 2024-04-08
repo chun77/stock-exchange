@@ -10,7 +10,6 @@ services:
 
   server:
     build: src
-    command: bash -c "make && ./main"
     ports:
       - "127.0.0.1:12345:12345"
     depends_on:

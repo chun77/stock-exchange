@@ -158,6 +158,5 @@ void server::handleRequest(const string& xmlMsg, int client_socket_fd){
     }
 
     string xmlResponse = generator.getXML();
-    cout << xmlResponse << endl;
     sendMessage(client_socket_fd, xmlResponse);
 }

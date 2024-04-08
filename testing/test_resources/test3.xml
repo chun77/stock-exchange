@@ -1,0 +1,19 @@
+514
+<create>
+    <symbol sym="banana">
+        <account id="1001">100</account>
+        <account id="1002">50</account>
+    </symbol>
+    <symbol sym="strawberry">
+        <account id="1002">100</account>
+        <account id="1003">50</account>
+    </symbol>
+    <symbol sym="watermelon">
+        <account id="1002">200</account>
+        <account id="1004">100</account>
+    </symbol>
+    <symbol sym="blueberry">
+        <account id="1003">50</account>
+        <account id="1004">100</account>
+    </symbol>
+</create>
