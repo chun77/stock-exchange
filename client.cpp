@@ -23,7 +23,15 @@ vector<string> getXmlFiles(const string& directory) {
         }
         closedir(dir);
     } else {
-        cerr << "Could not open directory" << endl;
+        perror("opendir"); // This will print why opendir failed
+        cerr << "Could not open directory: " << strerror(errno) << endl;
+
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        fprintf(stdout, "Current working dir: %s\n", cwd);
+        } else {
+        perror("getcwd");
+        }
     }
     return files;
 }
