@@ -7,12 +7,16 @@ createAccountResult dbController::insertAccount(int accountID, float balance){
     while(true){
         try {
             transaction<serializable> txn(con);
+            pqxx::result queryResult = txn.exec("SELECT accountID FROM Account WHERE accountID = " + std::to_string(accountID));
+            if (!queryResult.empty()) {
+                result.errMsg = "Account with ID " + std::to_string(accountID) + " already exists.";
+                return result;
+            }
             txn.exec("INSERT INTO Account (accountID, balance) VALUES (" + std::to_string(accountID) + ", " + std::to_string(balance) + ")");
             txn.commit();
             break;
         } catch (const exception& e) {
-            result.errMsg = e.what();
-            break;
+            continue;
         }
     }
     return result;
@@ -151,6 +155,7 @@ void dbController::matchOrders(transaction<serializable>& txn, int accountID, in
 
                 if (amt > 0) {
                     updateBuyerPosition(txn, accountID, symbol, tradeAmt);
+                    updateBuyerAccount(txn, accountID, (limit - executionPrice) * tradeAmt);
                     updateSellerAccount(txn, matchAccountID, executionPrice * tradeAmt);
                     updateOpened(txn, newTransID, tradeAmt);
                     updateOpened(txn, matchTransID, -tradeAmt);
@@ -189,6 +194,10 @@ void dbController::updateBuyerPosition(transaction<serializable>& txn, int accou
     }
 }
 
+void dbController::updateBuyerAccount(transaction<serializable>& txn, int accountID, float amount) {
+    txn.exec("UPDATE Account SET balance = balance + " + txn.quote(amount) + " WHERE accountID = " + txn.quote(accountID));
+}
+
 void dbController::updateSellerAccount(transaction<serializable>& txn, int accountID, float amount) {
     txn.exec("UPDATE Account SET balance = balance + " + txn.quote(amount) + " WHERE accountID = " + txn.quote(accountID));
 }
@@ -208,7 +217,6 @@ void dbController::updateOpened(transaction<serializable>& txn, int transID, flo
             txn.exec(updateSql);
         }
     } else {
-        // TODO: error handling
         std::cout << "No record found with transID: " << transID << std::endl;
     }
 }
@@ -224,7 +232,7 @@ void dbController::updateExecuted(transaction<serializable>& txn, int transID, i
     txn.exec(insertSql);
 }
 
-transCancelResult dbController::insertCanceled(int transID){
+transCancelResult dbController::insertCanceled(int accountID, int transID){
     transCancelResult result;
     result.transID = transID;
     result.canceledShares = 0;
@@ -233,9 +241,14 @@ transCancelResult dbController::insertCanceled(int transID){
     while(true){
         try {
             transaction<serializable> txn(con);
-            pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + "FOR UPDATE");
+            pqxx::result accountResult = txn.exec("SELECT accountID FROM Account WHERE accountID = " + std::to_string(accountID));
+            if (accountResult.empty()) {
+                result.errMsg = "This accountID doesn't exist";
+                return result;
+            }
+            pqxx::result res = txn.exec("SELECT * FROM OpenedOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID));
             if (res.empty()) {
-                result.errMsg = "No transaction found with transID: " + std::to_string(transID) + "\n";
+                result.errMsg = "No transaction found with transID: " + std::to_string(transID);
                 return result;
             }
             // Get details of the transaction
@@ -268,7 +281,7 @@ transCancelResult dbController::insertCanceled(int transID){
     return result;
 }
 
-transQueryResult dbController::queryShares(int transID){
+transQueryResult dbController::queryShares(int accountID, int transID){
     transQueryResult result;
     result.transID = transID;
     result.openedShares = 0;
@@ -277,18 +290,23 @@ transQueryResult dbController::queryShares(int transID){
     result.errMsg = "";
     while(true){
         try {
-            transaction<serializable> txn(con, "repeatable read");
+            transaction<serializable> txn(con);
+            pqxx::result accountResult = txn.exec("SELECT accountID FROM Account WHERE accountID = " + std::to_string(accountID));
+            if (accountResult.empty()) {
+                result.errMsg = "This accountID doesn't exist";
+                return result;
+            }
             pqxx::result openedRes = txn.exec(
-                "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID)
+                "SELECT amt FROM OpenedOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID)
             );
             pqxx::result canceledRes = txn.exec(
-                "SELECT amt, time FROM CanceledOrder WHERE transID = " + txn.quote(transID)
+                "SELECT amt, time FROM CanceledOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID)
             );
             pqxx::result executedRes = txn.exec(
-                "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID)
+                "SELECT amt, price, time FROM ExecutedOrder WHERE transID = " + txn.quote(transID) + " AND accountID = " + txn.quote(accountID)
             );
             if(openedRes.empty() && canceledRes.empty() && executedRes.empty()){
-                result.errMsg = "Invalid trans_ID\n";
+                result.errMsg = "Invalid trans_ID";
                 return result;
             }
             if (!openedRes.empty()) {
@@ -414,6 +432,7 @@ void dbController::initializeExecuted(){
     }
 }
 
+/*
 void test_insertAccount(dbController& db){
     createAccountResult result = db.insertAccount(123, 1000000);
     // Handle the result
@@ -591,8 +610,7 @@ void test_queryShares(dbController& db){
     }
 }
 
-
-/*int main(){
+int main(){
     // Create an instance of dbController
     dbController db("exchange", "postgres", "passw0rd", "localhost", "5432");
     // Initialize the database (create tables if necessary)

@@ -1,0 +1,9 @@
+292
+<transactions id="1003">
+    <order sym="apple" amount="-50" limit="20"/>
+    <order sym="blueberry" amount="-20" limit="40"/> 
+    <order sym="watermelon" amount="-50" limit="20"/>
+    <order sym="strawberry" amount="-50" limit="50"/>
+    <query id="4"/>
+    <cancel id="3"/>
+</transactions>

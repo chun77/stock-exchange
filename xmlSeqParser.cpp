@@ -61,6 +61,7 @@ int xmlSeqParser::getNextCreate(){
 int xmlSeqParser::getNextTrans(){
     XMLElement* child;
     if(strcmp(currElement->Name(), "transactions") == 0){
+        accoutIdForTrans = stoi(currElement->Attribute("id"));
         child = currElement->FirstChildElement();
     }
     else{
