@@ -10,7 +10,7 @@ services:
 
   server:
     build: src
-    command: bash -c "make clean && make && taskset -c 0 ./main"
+    command: bash -c "make clean && make && taskset -c 0-7 ./main"
     ports:
       - "127.0.0.1:12345:12345"
     depends_on:

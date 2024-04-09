@@ -1,0 +1,13 @@
+1. 
+how to make sure that the children of a create/transaction are processed in the order they appear in the input. 
+Former method: use separate vectors to store account and symbol
+Setbacks: We can only store internal order in account/symbol.We can not identify order between account and symbol.
+Improved method: Instead Of waiting after parsing all the request xml to generate the whole response xml, we parse 
+each child element one by one and generate corresponding child in response xml. 
+We use getNextCreate() to go to our next child.
+
+2. 
+Using a greater number of CPU cores doesn't necessarily result in faster performance, 
+as it may lead to increased concurrent operations on the database. 
+Since our database operations utilize transactions, this means that in case of conflicts, 
+we'll have numerous attempts to rerun transactions, potentially resulting in prolonged blocking periods.
