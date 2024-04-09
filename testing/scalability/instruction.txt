@@ -1,0 +1,26 @@
+This is the instruction for scalability testing
+
+
+For scalability, if you want to change the processor affinity, 
+please go to the docker-compose.yml file under the docker-deploy 
+directory and change the "0-7" in the following line:
+
+command: bash -c "make clean && make && taskset -c 0-7 ./main"
+
+You can change it to "0" (representing 1 core),
+"0-1" (representing 2 cores), 
+"0-3" (representing 4 cores), 
+or "0-7" (representing 8 cores). 
+Then, rerun "docker-compose up".
+
+After running "docker-compose up", please open a new terminal, 
+go to the testing/scalability directory, and run "./run_multiclients.sh". 
+This script will simulate 10 clients simultaneously sending messages to the 
+server and will ultimately provide the average runtime for each client. 
+By changing the processor affinity of the server, you should observe different 
+average runtimes reported by "./run_multiclients.sh".
+
+
+
+
+

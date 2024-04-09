@@ -12,5 +12,3 @@ RUN apt-get update && apt-get install -y \
 RUN touch dummy_file && make
 
 EXPOSE 12345
-
-CMD ["./main"]

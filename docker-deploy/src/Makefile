@@ -1,6 +1,6 @@
 CXX = g++
-CXXFLAGS = -I//usr/lib/x86_64-linux-gnu/libtinyxml2.so.6 -std=c++11 -Wall
-LMAINFLAGS = -lpqxx -ltinyxml2 -pthread
+CXXFLAGS = -std=c++11 -Wall
+LMAINFLAGS = -lpqxx -ltinyxml2 -pthread -L/usr/lib/x86_64-linux-gnu/
 all: main 
 
 main: main.cpp server.cpp xmlSeqParser.cpp xmlSeqGenerator.cpp dbController.cpp
